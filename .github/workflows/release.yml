@@ -164,25 +164,28 @@ jobs:
           name: BYK Seri Baskı Pro ${{ needs.version.outputs.ver }}
           make_latest: true
           body: |
-            ## Kalıcı indirme linkleri (site butonları — güncelleme gerekmez)
+            ## Kurulum paketleri (kaynak kod yok)
 
-            | Platform | Link |
+            Bu release yalnızca Windows / macOS kurulum zip’leridir.
+            GitHub’ın eklediği “Source code” arşivlerini son kullanıcıyla paylaşmayın.
+
+            Geliştirici: zip’leri indirip kendi web sitenize yükleyin; site butonlarını
+            oradaki URL’lere bağlayın (repo private — anonim GitHub indirme yok).
+
+            | Dosya | Platform |
             |---|---|
-            | **Windows** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip |
-            | **macOS** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_macOS.zip |
-            | Windows taşınabilir | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Portable.zip |
+            | `BYKSeriBaskiPro_Kurulum.zip` | Windows |
+            | `BYKSeriBaskiPro_macOS.zip` | macOS |
+            | `BYKSeriBaskiPro_Portable.zip` | Windows taşınabilir |
 
-            ## Bu sürüm (${{ needs.version.outputs.ver }})
-
-            | Platform | Dosya |
-            |---|---|
-            | Windows | `BYKSeriBaskiPro_v${{ needs.version.outputs.ver }}_Kurulum.zip` |
-            | macOS | `BYKSeriBaskiPro_v${{ needs.version.outputs.ver }}_macOS.zip` |
-            | Windows taşınabilir | `BYKSeriBaskiPro_v${{ needs.version.outputs.ver }}_Portable.zip` |
-
-            Windows: zip’i aç → `BYKSeriBaskiPro_Kurulum.exe`  
-            macOS: zip’i aç → `BYKSeriBaskiPro.app` (ilk açılışta sağ tık → Aç)
-          files: dist-upload/*
+            Sürüm: ${{ needs.version.outputs.ver }}
+          files: |
+            dist-upload/BYKSeriBaskiPro_Kurulum.zip
+            dist-upload/BYKSeriBaskiPro_macOS.zip
+            dist-upload/BYKSeriBaskiPro_Portable.zip
+            dist-upload/BYKSeriBaskiPro_v${{ needs.version.outputs.ver }}_Kurulum.zip
+            dist-upload/BYKSeriBaskiPro_v${{ needs.version.outputs.ver }}_macOS.zip
+            dist-upload/BYKSeriBaskiPro_v${{ needs.version.outputs.ver }}_Portable.zip
           draft: false
           prerelease: false
           fail_on_unmatched_files: true

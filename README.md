@@ -126,39 +126,35 @@ Veri / ayar klasörü:
 ~/Library/Application Support/BiyikDev/BYKSeriBaskiPro
 ```
 
-### GitHub Releases (otomatik paketler)
+### İndirme (son kullanıcı — yalnızca kurulum paketleri)
 
-Sürüm etiketi (`v1.1.1` vb.) push edildiğinde **GitHub Actions** hem Windows hem macOS zip üretir.
+**Kaynak kod paylaşılmaz.** Repo **private** tutulur; GitHub’daki “Source code” kullanıcıya verilmez.
 
-#### Site butonları — kalıcı (güncelleme gerekmez)
+Sitede paylaşacağınız şeyler yalnızca kurulum zip’leridir:
 
-Bu linkler her zaman **en son sürümü** indirir:
+1. Actions / Releases’ten (girişli hesabınızla) şu dosyaları indirin:
+   - `BYKSeriBaskiPro_Kurulum.zip` (Windows)
+   - `BYKSeriBaskiPro_macOS.zip` (macOS)
+2. Bunları **kendi sitenize** yükleyin (ör. `https://biyik.dev/downloads/...`)
+3. Site butonlarını bu kendi URL’lerinize bağlayın
 
-| Platform | Kalıcı link |
+| Buton | Ne indirilir |
 |---|---|
-| **Windows** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip |
-| **macOS** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_macOS.zip |
-| Windows taşınabilir | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Portable.zip |
+| Windows | `BYKSeriBaskiPro_Kurulum.zip` → içinde `BYKSeriBaskiPro_Kurulum.exe` |
+| macOS | `BYKSeriBaskiPro_macOS.zip` → içinde `BYKSeriBaskiPro.app` |
 
-| | Link |
-|---|---|
-| **İndirmeler (Releases)** | https://github.com/metinfarukbiyik/bykseripro/releases/latest |
-| **Actions (build durumu)** | https://github.com/metinfarukbiyik/bykseripro/actions |
-| **Kaynak kod** | https://github.com/metinfarukbiyik/bykseripro |
+**Paylaşmayın:** GitHub repo, Releases sayfası, Actions, Source code.
 
-Aynı zip dosyalarını kendi web sitenize de koyabilirsiniz.
+> Repo private olduğu için `github.com/.../releases/latest/download/...` linkleri ziyaretçide giriş ister; bu yüzden son kullanıcıya GitHub değil, **kendi site indirme URL’leriniz** verilmelidir.
 
-> **Not:** Mac bilgisayarda Windows `.exe` üretilemez. Windows paketi Windows’ta veya GitHub Actions Windows runner’ında derlenir.
-
-**Yeni sürüm yayınlama (geliştirici):**
+#### Geliştirici — paket üretme
 
 ```bash
-# VERSION dosyasını güncelle (ör. 1.1.2), commit et, sonra:
 git tag v1.1.2
 git push origin v1.1.2
 ```
 
-Manuel build: [Actions → Release packages → Run workflow](https://github.com/metinfarukbiyik/bykseripro/actions/workflows/release.yml)
+Bitince Releases’ten zip’leri indirip sitenize koyun.
 
 ---
 
@@ -252,10 +248,8 @@ Bu README’yi olduğu gibi veya bölümler halinde kullanabilirsiniz. Sitede ö
 6. **Gereksinimler**  
 7. **İletişim**  
 
-İndirme butonları için **kalıcı** linkler (sürüm değişince güncelleme gerekmez):
-
-- **Windows için indir** → https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip  
-- **macOS için indir** → https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_macOS.zip  
+İndirme butonları: kendi sitenizdeki Windows / macOS zip URL’leri  
+(GitHub repo / Source code / Releases sayfası paylaşılmaz.)
 
 ---
 
