@@ -1,0 +1,124 @@
+═══════════════════════════════════════════════════════════════
+  BYK Seri Baskı Pro — BIYIK.DEV
+  Dağıtım / Kurulum bilgilendirmesi
+═══════════════════════════════════════════════════════════════
+
+İsimlendirme
+------------
+  Görünen ad : BYK Seri Baskı Pro
+  Kısa ad    : BYKSeriBaskiPro
+  Windows    : BYKSeriBaskiPro.exe
+  Kurulum    : BYKSeriBaskiPro_Kurulum.exe
+  macOS      : BYKSeriBaskiPro.app
+  Bundle ID  : dev.biyik.seribaskipro
+
+
+GitHub Actions (otomatik Mac + Windows paket)
+---------------------------------------------
+  1) Projeyi GitHub’a push et
+  2) Sürüm etiketi at:
+       git tag v1.1.1
+       git push origin v1.1.1
+  3) Actions → “Release packages” çalışır
+  4) Repo → Releases → zip’leri indir
+
+  Kullanıcı indirme (örnek):
+    https://github.com/<USER>/<REPO>/releases/latest
+
+  Siteye de aynı zip’leri koyabilirsin.
+
+
+WINDOWS
+-------
+Geliştirici:
+  BUILD_RELEASE.bat
+  (veya GitHub Actions — Windows runner)
+
+Paylaşılacak:
+  release\BYKSeriBaskiPro_vX.X.X_Kurulum.zip
+
+Alıcı:
+  1) Zip’i açar
+  2) BYKSeriBaskiPro_Kurulum.exe → çift tık
+  3) Kurulum klasörünü seçer (Gözat / Program Files / kullanıcı klasörü)
+  4) “Kurulumu Başlat”
+     Program Files seçilirse yönetici onayı istenir.
+
+Varsayılan kurulum klasörü:
+  %LOCALAPPDATA%\BiyikDev\BYKSeriBaskiPro
+  veya seçilirse: %ProgramFiles%\Biyik.dev\BYKSeriBaskiPro
+
+Kaldırma:
+  Windows Ayarlar → Uygulamalar  /  Denetim Masası → Program ekle veya kaldır
+  (Yayıncı: Biyik.dev)  veya kurulum klasöründeki KALDIR.bat
+
+SmartScreen uyarısı: “Ek bilgi” → “Yine de çalıştır”
+  (Exe dosya özelliklerinde yayıncı: Biyik.dev. SmartScreen’de
+   “bilinen yayıncı” için Authenticode kod imzası gerekir.)
+
+
+macOS
+-----
+ÖNEMLİ: .app paketi YALNIZCA bir Mac bilgisayarda derlenir.
+(Windows’ta üretilen exe, Mac’te çalışmaz.)
+
+Geliştirici (Mac):
+  chmod +x *.sh *.command
+  BUILD_RELEASE_MAC.command   (veya ./BUILD_RELEASE_MAC.sh)
+
+Paylaşılacak:
+  release/BYKSeriBaskiPro_vX.X.X_macOS.zip
+
+Alıcı (Mac):
+  1) Zip’i açar
+  2) BYKSeriBaskiPro.app’e çift tıklar
+     veya KURULUM.command ile /Applications’a kurar
+
+İlk açılışta Gatekeeper:
+  Sağ tık → Aç → Aç
+
+Veri (config / Excel):
+  ~/Library/Application Support/BiyikDev/BYKSeriBaskiPro
+
+Kaldırma: KALDIR.command  (veya ./KALDIR.sh)
+
+Yazıcı (macOS):
+  Sistem Ayarları → Yazıcılar & Tarayıcılar → Xprinter ekleyin.
+  Uygulama baskıyı CUPS ile “raw” gönderir (TSPL).
+
+
+İKONLAR (assets/)
+-----------------
+  app.png          Ana kimlik — tek kaynak (değiştirince yeniden üret)
+  app.ico          Windows exe / masaüstü / başlat / pencere title bar
+  app.icns         macOS .app (Mac’te BUILD_APP.sh üretir)
+  biyik_badge.png  Arayüz rozeti (splash / hakkında) — sistem ikonu değil
+  whatsapp.png     İletişim ikonu
+
+  Yeniden üretim:  python tools/prepare_icons.py
+
+
+KAYNAKTAN ÇALIŞTIRMA (her iki OS)
+--------------------------------
+  Windows : BASLAT.bat
+  macOS   : Finder’da çift tık → Terminal:
+              BASLAT.command
+              BUILD_APP.command
+              BUILD_RELEASE_MAC.command
+              KURULUM.command
+              KALDIR.command
+            veya Terminal’de: ./BASLAT.sh  vb.
+  Not: .sh dosyasına çift tıklamak metin editöründe açar; bu normaldir.
+
+
+Gereksinimler
+-------------
+• Windows 10/11 veya macOS 12+
+• Xprinter XP-490B (veya TSPL uyumlu termal yazıcı)
+• İnternet gerekmez (kurulum sonrası)
+
+
+İletişim
+--------
+BIYIK.DEV  ·  metin@biyik.dev
+═══════════════════════════════════════════════════════════════

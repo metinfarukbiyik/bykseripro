@@ -1,0 +1,12 @@
+# Build / release artifacts
+build/
+dist/
+release/
+payload.zip
+*.pyc
+__pycache__/
+.venv/
+venv/
+*.spec.bak
+assets/app.iconset/
+assets/app.icns
