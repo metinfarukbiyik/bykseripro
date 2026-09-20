@@ -92,6 +92,9 @@ jobs:
           Copy-Item "VERSION" "$out\VERSION.txt"
           Compress-Archive -Path "$out\*" -DestinationPath "release\BYKSeriBaskiPro_v${ver}_Kurulum.zip" -Force
           Compress-Archive -Path 'dist\BYKSeriBaskiPro\*' -DestinationPath "release\BYKSeriBaskiPro_v${ver}_Portable.zip" -Force
+          # Sabit adlar → releases/latest/download/... (site butonları)
+          Copy-Item "release\BYKSeriBaskiPro_v${ver}_Kurulum.zip" "release\BYKSeriBaskiPro_Kurulum.zip" -Force
+          Copy-Item "release\BYKSeriBaskiPro_v${ver}_Portable.zip" "release\BYKSeriBaskiPro_Portable.zip" -Force
 
       - uses: actions/upload-artifact@v4
         with:
@@ -99,6 +102,8 @@ jobs:
           path: |
             release/BYKSeriBaskiPro_v*_Kurulum.zip
             release/BYKSeriBaskiPro_v*_Portable.zip
+            release/BYKSeriBaskiPro_Kurulum.zip
+            release/BYKSeriBaskiPro_Portable.zip
           if-no-files-found: error
 
   macos:
@@ -120,11 +125,15 @@ jobs:
         run: |
           chmod +x BASLAT.sh BUILD_APP.sh BUILD_RELEASE_MAC.sh KURULUM.sh KALDIR.sh *.command
           ./BUILD_RELEASE_MAC.sh
+          VER="$(tr -d '[:space:]' < VERSION)"
+          cp "release/BYKSeriBaskiPro_v${VER}_macOS.zip" "release/BYKSeriBaskiPro_macOS.zip"
 
       - uses: actions/upload-artifact@v4
         with:
           name: macos-packages
-          path: release/BYKSeriBaskiPro_v*_macOS.zip
+          path: |
+            release/BYKSeriBaskiPro_v*_macOS.zip
+            release/BYKSeriBaskiPro_macOS.zip
           if-no-files-found: error
 
   publish:
@@ -135,27 +144,41 @@ jobs:
         with:
           path: artifacts
 
-      - name: Dosyaları düzle
+      - name: Dosyaları düzle + sabit latest adları
+        env:
+          VER: ${{ needs.version.outputs.ver }}
         run: |
           mkdir -p dist-upload
           find artifacts -type f \( -name '*.zip' \) -exec cp {} dist-upload/ \;
+          # Güvence: sürüm zip’lerinden sabit ad üret
+          cp -f "dist-upload/BYKSeriBaskiPro_v${VER}_Kurulum.zip" "dist-upload/BYKSeriBaskiPro_Kurulum.zip"
+          cp -f "dist-upload/BYKSeriBaskiPro_v${VER}_Portable.zip" "dist-upload/BYKSeriBaskiPro_Portable.zip"
+          cp -f "dist-upload/BYKSeriBaskiPro_v${VER}_macOS.zip" "dist-upload/BYKSeriBaskiPro_macOS.zip"
           ls -la dist-upload
 
-      # Etiket push edildiğinde resmi Release oluştur (kullanıcılar buradan indirir)
       - name: GitHub Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: BYK Seri Baskı Pro ${{ needs.version.outputs.ver }}
+          make_latest: true
           body: |
-            ## İndir
+            ## Kalıcı indirme linkleri (site butonları — güncelleme gerekmez)
+
+            | Platform | Link |
+            |---|---|
+            | **Windows** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip |
+            | **macOS** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_macOS.zip |
+            | Windows taşınabilir | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Portable.zip |
+
+            ## Bu sürüm (${{ needs.version.outputs.ver }})
 
             | Platform | Dosya |
             |---|---|
-            | **Windows (önerilen)** | `BYKSeriBaskiPro_v${{ needs.version.outputs.ver }}_Kurulum.zip` |
-            | Windows (taşınabilir) | `BYKSeriBaskiPro_v${{ needs.version.outputs.ver }}_Portable.zip` |
-            | **macOS** | `BYKSeriBaskiPro_v${{ needs.version.outputs.ver }}_macOS.zip` |
+            | Windows | `BYKSeriBaskiPro_v${{ needs.version.outputs.ver }}_Kurulum.zip` |
+            | macOS | `BYKSeriBaskiPro_v${{ needs.version.outputs.ver }}_macOS.zip` |
+            | Windows taşınabilir | `BYKSeriBaskiPro_v${{ needs.version.outputs.ver }}_Portable.zip` |
 
             Windows: zip’i aç → `BYKSeriBaskiPro_Kurulum.exe`  
             macOS: zip’i aç → `BYKSeriBaskiPro.app` (ilk açılışta sağ tık → Aç)
@@ -164,7 +187,6 @@ jobs:
           prerelease: false
           fail_on_unmatched_files: true
 
-      # Manuel çalıştırmada da artifact'lar Actions sayfasından indirilebilir
       - uses: actions/upload-artifact@v4
         if: github.ref_type != 'tag'
         with:

@@ -128,10 +128,17 @@ Veri / ayar klasörü:
 
 ### GitHub Releases (otomatik paketler)
 
-Sürüm etiketi (`v1.1.1` vb.) push edildiğinde **GitHub Actions** hem Windows hem macOS zip üretir:
+Sürüm etiketi (`v1.1.1` vb.) push edildiğinde **GitHub Actions** hem Windows hem macOS zip üretir.
 
-- Windows: `…_Kurulum.zip` (+ isteğe bağlı `…_Portable.zip`)  
-- macOS: `…_macOS.zip`  
+#### Site butonları — kalıcı (güncelleme gerekmez)
+
+Bu linkler her zaman **en son sürümü** indirir:
+
+| Platform | Kalıcı link |
+|---|---|
+| **Windows** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip |
+| **macOS** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_macOS.zip |
+| Windows taşınabilir | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Portable.zip |
 
 | | Link |
 |---|---|
@@ -245,10 +252,10 @@ Bu README’yi olduğu gibi veya bölümler halinde kullanabilirsiniz. Sitede ö
 6. **Gereksinimler**  
 7. **İletişim**  
 
-İndirme butonları için örnek metin:
+İndirme butonları için **kalıcı** linkler (sürüm değişince güncelleme gerekmez):
 
-- **Windows için indir** → `BYKSeriBaskiPro_v1.1.1_Kurulum.zip`  
-- **macOS için indir** → `BYKSeriBaskiPro_v1.1.1_macOS.zip`  
+- **Windows için indir** → https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip  
+- **macOS için indir** → https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_macOS.zip  
 
 ---
 

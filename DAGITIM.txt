@@ -22,7 +22,12 @@ GitHub Actions (otomatik Mac + Windows paket)
   3) Actions → “Release packages” çalışır
   4) Repo → Releases → zip’leri indir
 
-  Kullanıcı indirme:
+  Kullanıcı indirme (kalıcı — site butonları):
+    https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip
+    https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_macOS.zip
+    https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Portable.zip
+
+  Releases sayfası:
     https://github.com/metinfarukbiyik/bykseripro/releases/latest
 
   Actions:
