@@ -164,19 +164,19 @@ jobs:
           name: BYK Seri Baskı Pro ${{ needs.version.outputs.ver }}
           make_latest: true
           body: |
-            ## Kurulum paketleri (kaynak kod yok)
+            ## İndirme (yalnızca kurulum paketleri)
 
-            Bu release yalnızca Windows / macOS kurulum zip’leridir.
-            GitHub’ın eklediği “Source code” arşivlerini son kullanıcıyla paylaşmayın.
+            Kaynak kodu son kullanıcıyla paylaşmayın. Releases sayfasındaki
+            “Source code” linklerini siteye koymayın — yalnız aşağıdaki zip’ler.
 
-            Geliştirici: zip’leri indirip kendi web sitenize yükleyin; site butonlarını
-            oradaki URL’lere bağlayın (repo private — anonim GitHub indirme yok).
-
-            | Dosya | Platform |
+            | Platform | Kalıcı link |
             |---|---|
-            | `BYKSeriBaskiPro_Kurulum.zip` | Windows |
-            | `BYKSeriBaskiPro_macOS.zip` | macOS |
-            | `BYKSeriBaskiPro_Portable.zip` | Windows taşınabilir |
+            | **Windows** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip |
+            | **macOS** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_macOS.zip |
+            | Windows taşınabilir | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Portable.zip |
+
+            Windows: zip’i aç → `BYKSeriBaskiPro_Kurulum.exe`  
+            macOS: zip’i aç → `BYKSeriBaskiPro.app` (ilk açılışta sağ tık → Aç)
 
             Sürüm: ${{ needs.version.outputs.ver }}
           files: |

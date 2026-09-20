@@ -128,24 +128,17 @@ Veri / ayar klasörü:
 
 ### İndirme (son kullanıcı — yalnızca kurulum paketleri)
 
-**Kaynak kod paylaşılmaz.** Repo **private** tutulur; GitHub’daki “Source code” kullanıcıya verilmez.
+**Kaynak kod paylaşmayın.** Sitede / müşteriye yalnızca şu kalıcı zip linklerini verin (giriş gerekmez):
 
-Sitede paylaşacağınız şeyler yalnızca kurulum zip’leridir:
-
-1. Actions / Releases’ten (girişli hesabınızla) şu dosyaları indirin:
-   - `BYKSeriBaskiPro_Kurulum.zip` (Windows)
-   - `BYKSeriBaskiPro_macOS.zip` (macOS)
-2. Bunları **kendi sitenize** yükleyin (ör. `https://biyik.dev/downloads/...`)
-3. Site butonlarını bu kendi URL’lerinize bağlayın
-
-| Buton | Ne indirilir |
+| Platform | Kalıcı link |
 |---|---|
-| Windows | `BYKSeriBaskiPro_Kurulum.zip` → içinde `BYKSeriBaskiPro_Kurulum.exe` |
-| macOS | `BYKSeriBaskiPro_macOS.zip` → içinde `BYKSeriBaskiPro.app` |
+| **Windows** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip |
+| **macOS** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_macOS.zip |
+| Windows taşınabilir | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Portable.zip |
 
-**Paylaşmayın:** GitHub repo, Releases sayfası, Actions, Source code.
+**Paylaşmayın:** repo ana sayfası, Releases sayfası, Actions, “Source code (zip/tar.gz)”.
 
-> Repo private olduğu için `github.com/.../releases/latest/download/...` linkleri ziyaretçide giriş ister; bu yüzden son kullanıcıya GitHub değil, **kendi site indirme URL’leriniz** verilmelidir.
+> GitHub release sayfasına otomatik Source code ekler; bu yüzden kullanıcıyı Releases sayfasına değil, **doğrudan yukarıdaki zip URL’lerine** yönlendirin.
 
 #### Geliştirici — paket üretme
 
@@ -154,7 +147,7 @@ git tag v1.1.2
 git push origin v1.1.2
 ```
 
-Bitince Releases’ten zip’leri indirip sitenize koyun.
+Manuel: Actions → Release packages → Run workflow
 
 ---
 
@@ -248,8 +241,12 @@ Bu README’yi olduğu gibi veya bölümler halinde kullanabilirsiniz. Sitede ö
 6. **Gereksinimler**  
 7. **İletişim**  
 
-İndirme butonları: kendi sitenizdeki Windows / macOS zip URL’leri  
-(GitHub repo / Source code / Releases sayfası paylaşılmaz.)
+İndirme butonları (kalıcı — güncelleme gerekmez):
+
+- **Windows** → https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip  
+- **macOS** → https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_macOS.zip  
+
+Repo / Releases / Source code sayfalarını siteye koymayın; yalnız bu zip linkleri.
 
 ---
 
