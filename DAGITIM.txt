@@ -22,8 +22,11 @@ GitHub Actions (otomatik Mac + Windows paket)
   3) Actions → “Release packages” çalışır
   4) Repo → Releases → zip’leri indir
 
-  Kullanıcı indirme (örnek):
-    https://github.com/<USER>/<REPO>/releases/latest
+  Kullanıcı indirme:
+    https://github.com/metinfarukbiyik/bykseripro/releases/latest
+
+  Actions:
+    https://github.com/metinfarukbiyik/bykseripro/actions
 
   Siteye de aynı zip’leri koyabilirsin.
 

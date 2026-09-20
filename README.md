@@ -133,15 +133,25 @@ Sürüm etiketi (`v1.1.1` vb.) push edildiğinde **GitHub Actions** hem Windows 
 - Windows: `…_Kurulum.zip` (+ isteğe bağlı `…_Portable.zip`)  
 - macOS: `…_macOS.zip`  
 
-İndirme sayfası örneği:
-
-```text
-https://github.com/<KULLANICI>/<REPO>/releases/latest
-```
+| | Link |
+|---|---|
+| **İndirmeler (Releases)** | https://github.com/metinfarukbiyik/bykseripro/releases/latest |
+| **Actions (build durumu)** | https://github.com/metinfarukbiyik/bykseripro/actions |
+| **Kaynak kod** | https://github.com/metinfarukbiyik/bykseripro |
 
 Aynı zip dosyalarını kendi web sitenize de koyabilirsiniz.
 
 > **Not:** Mac bilgisayarda Windows `.exe` üretilemez. Windows paketi Windows’ta veya GitHub Actions Windows runner’ında derlenir.
+
+**Yeni sürüm yayınlama (geliştirici):**
+
+```bash
+# VERSION dosyasını güncelle (ör. 1.1.2), commit et, sonra:
+git tag v1.1.2
+git push origin v1.1.2
+```
+
+Manuel build: [Actions → Release packages → Run workflow](https://github.com/metinfarukbiyik/bykseripro/actions/workflows/release.yml)
 
 ---
 

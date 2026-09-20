@@ -10,3 +10,6 @@ venv/
 *.spec.bak
 assets/app.iconset/
 assets/app.icns
+
+.DS_Store
+**/.DS_Store
