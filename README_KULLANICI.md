@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  🌐 Ürün sayfası: <a href="https://biyik.dev/seri-baski-pro"><b>biyik.dev/seri-baski-pro</b></a><br>
+  🌐 Ürün sayfası: <a href="https://biyik.dev/byk-seri-baski-pro"><b>biyik.dev/byk-seri-baski-pro</b></a><br>
   İndirme bağlantıları her zaman <b>en son sürümü</b> verir · Kurulumdan sonra internet gerekmez
 </p>
 
@@ -47,6 +47,7 @@
 | 📐 **Her etiket boyutuna uyum** | 98×98’den 100×40 mm’ye: ikinci barkodu yan yana alın, otomatik sığdırma içeriği küçültsün |
 | 🔤 **Türkçe karakter ve tam ortalama** | Uzun yazılar satırlara bölünür, her satır ortalanır; ı, ş, ğ, İ doğru basılır |
 | 🏷️ **Tasarımlı markalama** | Firma adınızı açıp kapatın; üst/alt, boyut ve stil (düz, çerçeveli, siyah bant, çizgili) |
+| ✏️ **Listeyi elle düzenleme** | Excel’i açmadan tek seri ekleyin, yanlış satırı çıkarın; yanlışlıkla çıkardığınızı geri alın |
 | 🔢 **Seri üretim** | Excel olmadan önek + sayı + sonek ile otomatik seri etiket listesi oluşturun |
 | ▦ **Barkod tipleri** | Code 128, Code 39, Code 93, EAN-13, EAN-8 ve QR Kod |
 | 🎯 **Yazıcı kalibrasyonu** | Baskı kaymasını mm hassasiyetinde düzeltin |
@@ -101,7 +102,7 @@ Program her açılışta yeni sürüm olup olmadığını kontrol eder. Bildirim
 
 İlk satır **başlık**, sonraki her satır **bir etiket**tir.
 
-| Barkod | A-K Barkod | ItemNo | ParcaAd |
+| Barkod | 2. Barkod | Açıklama | Model |
 |---|---|---|---|
 | SN2026000123 | AK-5544 | 10-200-33 | Motor kapağı |
 | SN2026000124 | AK-5545 | 10-200-34 | Conta seti |
@@ -113,7 +114,7 @@ Program her açılışta yeni sürüm olup olmadığını kontrol eder. Bildirim
 | **3. sütun** | Orta metin | isteğe bağlı |
 | **4. sütun** | Alt metin | isteğe bağlı |
 
-Başlık adları farklı olabilir (`Seri No`, `Barcode`, `Item No` …); program tanır ve kendi ekranında da sizin başlıklarınızı kullanır.
+**Başlık adları tamamen serbesttir.** İkinci barkod sütununuz `A-K Barkod`, `M Barkod` ya da `C Barkod` olabilir — adında “barkod” geçen ikinci sütun otomatik olarak 2. barkod kabul edilir. Program ayarlarda rolleri ortak adlarla gösterir (ör. *2. barkod (M Barkod)*), listede ise sizin başlıklarınızı kullanır.
 
 ---
 
@@ -185,7 +186,7 @@ Hayır. Baskı için internet gerekmez; yalnızca güncelleme kontrolü için ku
 <p>
   ✉️ <a href="mailto:metin@biyik.dev">metin@biyik.dev</a> &nbsp;·&nbsp;
   💬 WhatsApp: <a href="https://wa.me/905404613543">+90 (540) 461 35 43</a> &nbsp;·&nbsp;
-  🌐 <a href="https://biyik.dev/seri-baski-pro">biyik.dev/seri-baski-pro</a>
+  🌐 <a href="https://biyik.dev/byk-seri-baski-pro">biyik.dev/byk-seri-baski-pro</a>
 </p>
 
 <p align="center"><sub>© BIYIK.DEV — BYK Seri Baskı Pro</sub></p>
