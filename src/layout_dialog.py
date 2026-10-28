@@ -11,12 +11,13 @@ import tkinter as tk
 from tkinter import ttk
 from typing import TYPE_CHECKING
 
+from excel_loader import role_label
 from label_preview import render_label_photoimage
 from tspl_builder import AK_POSITIONS, TEXT_MODES, compute_layout
 from ui_icons import C_GOLD, C_NAVY, C_TEAL, icon_button, icon_labelframe
 
 if TYPE_CHECKING:
-    from app import LabelApp
+    from main_window import LabelApp
 
 # Ön ayarlar: değişken adı → değer
 PRESET_DEFAULT = {
@@ -103,17 +104,17 @@ class LayoutDialog(tk.Toplevel):
         self._spin(size, "Genişlik", a.width_var, 0, 0, 10, 120, 1)
         self._spin(size, "Yükseklik", a.height_var, 0, 2, 10, 200, 1)
         self._spin(size, "Ana barkod yük.", a.bc_height_var, 1, 0, 3, 80, 0.5)
-        self._spin(size, f"{h.ak_barkod} yük.", a.ak_bc_height_var, 1, 2, 3, 80, 0.5)
+        self._spin(size, "2. barkod yük.", a.ak_bc_height_var, 1, 2, 3, 80, 0.5)
         self._spin(size, "Çizgi kalınlığı", a.narrow_var, 2, 0, 1, 6, 1)
 
         fields = icon_labelframe(parent, "Basılacak alanlar", "list-check", a._icons, fill=C_NAVY)
         fields.pack(fill="x", pady=6)
         checks = [
-            (f"{h.barkod} metni", a.show_main_text_var),
-            (f"{h.ak_barkod} (2. barkod)", a.show_ak_var),
-            (f"{h.ak_barkod} metni", a.show_ak_text_var),
-            (h.item_no, a.show_item_var),
-            (h.parca_ad, a.show_parca_var),
+            (f"{role_label('barkod', h)} metni", a.show_main_text_var),
+            (role_label("ak_barkod", h), a.show_ak_var),
+            ("2. barkod metni", a.show_ak_text_var),
+            (role_label("item_no", h), a.show_item_var),
+            (role_label("parca_ad", h), a.show_parca_var),
         ]
         for i, (text, var) in enumerate(checks):
             ttk.Checkbutton(fields, text=text, variable=var).grid(

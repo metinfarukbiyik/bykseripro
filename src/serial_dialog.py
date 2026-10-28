@@ -121,8 +121,8 @@ def open_serial_dialog(
         (4, "Adım", step_var),
         (5, "Sonek", suffix_var),
         (6, "Sıfır doldurma", pad_var),
-        (7, "ItemNo / orta metin", item_var),
-        (8, "ParcaAd / alt metin", parca_var),
+        (7, "Orta metin", item_var),
+        (8, "Alt metin", parca_var),
     ]
     for row, label, var in fields:
         ttk.Label(body, text=label + ":").grid(row=row, column=0, sticky="e", **pad)

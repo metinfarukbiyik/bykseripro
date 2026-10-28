@@ -304,8 +304,9 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
 
     _p(
         s2,
-        "Bilinen başlıklar (Barkod, A-K Barkod, ItemNo, ParcaAd, SeriNo…) farklı "
-        "sütun sırasındaysa da tanınır. Tamamen özel isimlerde A–D sırası kullanılır.",
+        "Başlık adları serbesttir: 2. barkod “A-K Barkod”, “M Barkod”, “C Barkod” "
+        "olabilir — adında “barkod” geçen ikinci sütun otomatik 2. barkod olur. "
+        "Tanınmayan sütunlar soldan sağa sırayla kullanılır.",
         muted=True,
     )
 
@@ -331,6 +332,11 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
     _bullet(s3, "Sol liste: Excel veya seri üretim satırları")
     _bullet(s3, "Ara kutusu: listede anında filtre")
     _bullet(s3, "Listeyi temizle: tüm etiketleri listeden siler")
+    _bullet(
+        s3,
+        "Seri ekle… / Seçilileri çıkar: Excel’i açmadan listeye tek seri ekleyin ya da "
+        "yanlış satırı çıkarın (Delete tuşu, sağ tık). Geri al: Ctrl/⌘+Z",
+    )
     _bullet(s3, "Sağ önizleme: Görsel + TSPL sekmeleri (kağıttaki konumlarla birebir)")
     _bullet(
         s3,

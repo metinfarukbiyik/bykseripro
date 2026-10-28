@@ -27,9 +27,9 @@
   "margin_mm": 6.0,
   "excel_columns": {
     "barkod": "Barkod",
-    "ak_barkod": "A-K Barkod",
-    "item_no": "ItemNo",
-    "parca_ad": "ParcaAd"
+    "ak_barkod": "2. Barkod",
+    "item_no": "Orta metin",
+    "parca_ad": "Alt metin"
   },
   "ak_barcode_type": "128",
   "qr_ecc": "M",
