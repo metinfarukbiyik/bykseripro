@@ -70,11 +70,7 @@ def check_printer(name: str) -> PrinterCheck:
             )
     for pattern, brand in _TSPL:
         if re.search(pattern, low):
-            return PrinterCheck(
-                OK,
-                f"{brand} — TSPL uyumlu. Yazıcınızın DPI değerini (203 / 300) "
-                "doğru seçtiğinizden emin olun.",
-            )
+            return PrinterCheck(OK, f"{brand} — TSPL uyumlu.")
     if re.search(_GENERIC_LABEL, low):
         return PrinterCheck(
             UNKNOWN,
@@ -86,6 +82,27 @@ def check_printer(name: str) -> PrinterCheck:
         "Model tanınmadı. Yazıcı TSPL / TSPL2 destekliyorsa çalışır; "
         "“Test Baskı” ile deneyin.",
     )
+
+
+# Model adından çözünürlük tahmini (sürücü bildirmiyorsa)
+_DPI_HINTS = (
+    (r"600\s*dpi", 600),
+    (r"300\s*dpi", 300),
+    (r"203\s*dpi|200\s*dpi", 203),
+    (r"\b(?:ttp|te|ta|da|me|mh|mx)[-_ ]?3\d\d", 300),  # TSC 3xx serisi
+    (r"\b(?:ttp|te|ta|da|me|mh)[-_ ]?2\d\d", 203),      # TSC 2xx serisi
+    (r"\bht3\d\d", 300),                                # HPRT HT300
+    (r"xprinter|\bxp[-_ ]?\d", 203),
+    (r"gprinter|\bgp[-_ ]?\d", 203),
+)
+
+
+def guess_dpi(name: str) -> int | None:
+    low = (name or "").lower()
+    for pattern, dpi in _DPI_HINTS:
+        if re.search(pattern, low):
+            return dpi
+    return None
 
 
 def pick_label_printer(printers: list[str]) -> str:

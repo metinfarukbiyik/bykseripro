@@ -140,34 +140,32 @@ def truncate_to_width(text: str, max_w: int, measure: Callable[[str], int]) -> s
 
 def credit_icon(h: int) -> Image.Image:
     """
-    Program imzası ikonu: yatay etiket kartı (sivri uç + delik) içinde barkod.
-    Tek renk ve yazıcı noktasına hizalı çizilir → termal baskıda keskin çıkar.
-    'L' modunda döner (0 = siyah).
+    Program imzası ikonu: barkod tarayıcı vizörü — dört köşe çerçevesi ve
+    farklı kalınlıkta barkod çizgileri. Tek renk ve yazıcı noktasına hizalı
+    çizilir → termal baskıda keskin çıkar. 'L' modunda döner (0 = siyah).
     """
     h = max(12, int(h))
-    u = max(1, round(h / 22))  # çizgi kalınlığı birimi (203 DPI'da 1 nokta)
-    w = round(h * 1.5)
+    u = max(1, round(h / 22))  # çizgi birimi (203 DPI'da 1 nokta)
+    w = round(h * 1.36)
     img = Image.new("1", (w, h), 1)
     d = ImageDraw.Draw(img)
-    notch = round(h * 0.42)
-    mid = h // 2
-    d.polygon(
-        [(notch, 0), (w - 1, 0), (w - 1, h - 1), (notch, h - 1), (0, mid)],
-        outline=0,
-        fill=1,
-        width=u,
-    )
-    hr = max(2, round(h * 0.11))
-    hx = round(notch * 0.62)
-    d.ellipse([hx - hr, mid - hr, hx + hr, mid + hr], outline=0, width=u)
-    # Barkod: çizgi / boşluk genişlikleri u katı
-    pattern = (2, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 2, 1, 1, 2)
-    x = notch + 3 * u
-    top, bot = 4 * u, h - 1 - 4 * u
-    limit = w - 1 - 3 * u
+
+    # Köşe çerçeveleri: her köşede yatay + dikey kol
+    arm = max(3 * u, round(h * 0.28))
+    for x, y, sx, sy in ((0, 0, 1, 1), (w - 1, 0, -1, 1), (0, h - 1, 1, -1), (w - 1, h - 1, -1, -1)):
+        xe, ye = x + sx * (arm - 1), y + sy * (arm - 1)
+        xt, yt = x + sx * (u - 1), y + sy * (u - 1)
+        d.rectangle([min(x, xe), min(y, yt), max(x, xe), max(y, yt)], fill=0)
+        d.rectangle([min(x, xt), min(y, ye), max(x, xt), max(y, ye)], fill=0)
+
+    # Barkod: çizgi / boşluk genişlikleri u katı, vizör içinde ortalı
+    pattern = (2, 1, 1, 1, 3, 1, 1, 2, 1, 1, 2, 1, 1, 1, 3, 1, 2)
+    left, right = 3 * u + 1, w - 3 * u - 1
+    x = left + max(0, (right - left - sum(pattern) * u) // 2)
+    top, bot = 3 * u + 1, h - 3 * u - 2
     for i, k in enumerate(pattern):
         bw = k * u
-        if x + bw > limit:
+        if x + bw > right:
             break
         if i % 2 == 0:
             d.rectangle([x, top, x + bw - 1, bot], fill=0)

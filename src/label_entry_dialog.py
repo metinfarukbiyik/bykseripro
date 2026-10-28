@@ -59,12 +59,27 @@ class LabelEntryDialog(tk.Toplevel):
         btns = ttk.Frame(body)
         btns.grid(row=6, column=0, columnspan=2, sticky="e", pady=(10, 0))
         ttk.Button(btns, text="Kapat", command=self.destroy).pack(side="right")
-        ttk.Button(btns, text="Ekle", command=self._add).pack(side="right", padx=(0, 6))
+        ttk.Button(btns, text="Ekle", command=self._add, style="Primary.TButton").pack(
+            side="right", padx=(0, 6)
+        )
 
         self.bind("<Return>", lambda _e: self._add())
         self.bind("<Escape>", lambda _e: self.destroy())
+        self._center_on(parent)
         if self._first is not None:
             self._first.focus_set()
+
+    def _center_on(self, parent: tk.Misc) -> None:
+        """Program penceresinin yatay ve dikey ortasında aç."""
+        self.withdraw()
+        self.update_idletasks()
+        w, h = self.winfo_reqwidth(), self.winfo_reqheight()
+        # geometry() çerçeveyi (başlık çubuğu dahil) konumlar; ölçüler içerik alanı
+        bar = max(0, parent.winfo_rooty() - parent.winfo_y())
+        x = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2 - bar
+        self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        self.deiconify()
 
     def _add(self) -> None:
         values = {role: var.get().strip() for role, var in self.vars.items()}

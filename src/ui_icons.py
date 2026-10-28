@@ -6,6 +6,8 @@ import tkinter as tk
 from tkinter import ttk
 
 from ctkfontawesome import icon_to_image
+
+from theme import button_style
 from PIL.ImageTk import PhotoImage
 
 # Kurumsal palet
@@ -55,8 +57,9 @@ def icon_button(
     fill: str = C_NAVY,
     **kwargs,
 ) -> ttk.Button:
-    """İkon + metin içeren ttk.Button."""
+    """İkon + metin içeren ttk.Button (köşe rengi bulunduğu zemine uyar)."""
     img = store.get(icon, size=size, fill=fill)
+    kwargs["style"] = button_style(parent, kwargs.get("style", "TButton"))
     opts: dict = {"text": f" {text}", "command": command, **kwargs}
     if img is not None:
         opts["image"] = img
@@ -72,14 +75,15 @@ def icon_labelframe(
     *,
     size: int = 13,
     fill: str = C_NAVY,
-    padding: int | tuple = (10, 4, 10, 8),
+    padding: int | tuple | None = None,
 ) -> ttk.LabelFrame:
     """Solunda Font Awesome ikonu olan LabelFrame."""
-    frame = ttk.LabelFrame(parent, padding=padding)
-    label = ttk.Frame(frame)
+    # Başlık kartın üstünde, zemin renginde (theme: labeloutside)
+    frame = ttk.LabelFrame(parent, **({} if padding is None else {"padding": padding}))
+    label = ttk.Frame(frame, style="CardHead.TFrame")
     img = store.get(icon, size=size, fill=fill)
     if img is not None:
-        ttk.Label(label, image=img).pack(side="left", padx=(0, 6))
+        ttk.Label(label, image=img, style="CardTitle.TLabel").pack(side="left", padx=(0, 6))
     title_lbl = ttk.Label(label, text=text, style="CardTitle.TLabel")
     title_lbl.pack(side="left")
     frame.configure(labelwidget=label)

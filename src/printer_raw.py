@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -155,6 +156,68 @@ def _cups_send_raw(printer_name: str, raw: bytes, job_name: str) -> None:
                 Path(tmp_path).unlink(missing_ok=True)
             except OSError:
                 pass
+
+
+# ── Çözünürlük (DPI) ─────────────────────────────────────────────────
+
+# Etiket yazıcılarının gerçek çözünürlükleri; sürücü başka değer bildirirse
+# (ör. genel metin sürücüsü 72 / 360) güvenilmez sayılır
+LABEL_DPIS = (203, 300, 600)
+
+
+def _normalize_dpi(value: int | None) -> int | None:
+    if not value:
+        return None
+    for dpi in LABEL_DPIS:
+        if abs(int(value) - dpi) <= 6:
+            return dpi
+    return None
+
+
+def _win_printer_dpi(printer_name: str) -> int | None:
+    import win32print
+
+    handle = win32print.OpenPrinter(printer_name)
+    try:
+        devmode = win32print.GetPrinter(handle, 2).get("pDevMode")
+    finally:
+        win32print.ClosePrinter(handle)
+    if devmode is None:
+        return None
+    for attr in ("YResolution", "PrintQuality"):
+        dpi = _normalize_dpi(getattr(devmode, attr, 0) or 0)
+        if dpi:
+            return dpi
+    return None
+
+
+def _cups_printer_dpi(printer_name: str) -> int | None:
+    result = subprocess.run(
+        ["lpoptions", "-p", printer_name, "-l"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    for line in (result.stdout or "").splitlines():
+        if not line.lower().startswith("resolution"):
+            continue
+        # "Resolution/Resolution: 180x180dpi *203dpi" → yıldızlı = varsayılan
+        match = re.search(r"\*(\d+)(?:x(\d+))?dpi", line)
+        if match:
+            return _normalize_dpi(int(match.group(2) or match.group(1)))
+    return None
+
+
+def printer_dpi(printer_name: str) -> int | None:
+    """Yazıcı sürücüsünün bildirdiği çözünürlük (bilinmiyorsa None)."""
+    if not printer_name:
+        return None
+    try:
+        if _is_windows():
+            return _win_printer_dpi(printer_name)
+        return _cups_printer_dpi(printer_name)
+    except Exception:
+        return None
 
 
 # ── Ortak API ─────────────────────────────────────────────────────────

@@ -35,11 +35,13 @@ from layout_dialog import LayoutDialog
 from paths import app_home, assets_dir, defaults_dir
 from printer_compat import OK as PRINTER_OK
 from printer_compat import WARN as PRINTER_WARN
-from printer_compat import check_printer, pick_label_printer
-from printer_raw import default_printer, list_printers, send_raw
+from printer_compat import check_printer, guess_dpi, pick_label_printer
+from printer_raw import default_printer, list_printers, printer_dpi, send_raw
 from serial_dialog import open_serial_dialog
 from splash import show_splash
-from theme import STRIPE, apply_theme
+from theme import GOLD as THEME_GOLD
+from theme import NAVY as THEME_NAVY
+from theme import STRIPE, apply_theme, button_style
 from tspl_builder import (
     BARCODE_TYPES,
     BRAND_POSITIONS,
@@ -145,6 +147,11 @@ LAYOUT_DEFAULTS: dict[str, object] = {
     "text_mode": "graphic",
     "offset_x_mm": 0.0,
     "offset_y_mm": 0.0,
+    "font_parca": 0,
+    "ak_barcode_narrow": 0,
+    "content_valign": "center",
+    "element_align": {},
+    "element_offsets": {},
 }
 
 
@@ -162,7 +169,7 @@ def settings_from_config(cfg: dict, **overrides) -> LabelSettings:
         copies=int(overrides.get("copies", cfg.get("copies", 1))),
         density=int(overrides.get("density", cfg.get("density", 8))),
         speed=int(cfg.get("speed", 4)),
-        direction=int(cfg.get("direction", 1)),
+        direction=int(overrides.get("direction", cfg.get("direction", 1))),
         barcode_type=str(
             overrides.get(
                 "barcode_type",
@@ -352,13 +359,26 @@ class LabelApp(tk.Tk):
             "gap_after_text_mm", c.get("gap_between_lines_mm", 2.5)
         )
         self.narrow_var = svar("barcode_narrow", 3)
+        self.ak_narrow_var = svar("ak_barcode_narrow", 0)
+        self.font_parca_var = tk.IntVar(value=int(c.get("font_parca", 0)))
+        self.valign_var = svar("content_valign", "center")
+        self.direction_var = svar("direction", 1)
+        self.qr_cell_var = svar("qr_cell", 4)
+        # Öğe bazında hizalama / elle kaydırma (Yerleşim penceresi yönetir)
+        self.element_align: dict[str, str] = dict(c.get("element_align") or {})
+        self.element_offsets: dict[str, list[float]] = {
+            k: [float(v[0]), float(v[1])]
+            for k, v in (c.get("element_offsets") or {}).items()
+            if isinstance(v, (list, tuple)) and len(v) == 2
+        }
         for var in (
             self.show_main_text_var, self.show_ak_var, self.show_ak_text_var,
             self.show_item_var, self.show_parca_var, self.auto_fit_var,
             self.ak_pos_var, self.text_mode_var, self.max_lines_var,
             self.offset_x_var, self.offset_y_var, self.margin_var,
             self.gap_after_bc_var, self.gap_barcodes_var, self.gap_text_var,
-            self.narrow_var,
+            self.narrow_var, self.ak_narrow_var, self.font_parca_var,
+            self.valign_var, self.direction_var, self.qr_cell_var,
         ):
             var.trace_add("write", lambda *_: self._refresh_preview())
 
@@ -373,6 +393,14 @@ class LabelApp(tk.Tk):
         combo.set(f"{cur} — {FONT_SIZE_LABELS.get(cur, 'Orta')}")
         combo.grid(row=row, column=col, sticky="w", padx=4, pady=2)
 
+        def sync(*_args, v=var, c=combo) -> None:
+            # Yerleşim penceresinden değişirse burada da görünsün
+            if c.winfo_exists():
+                n = int(v.get())
+                c.set(f"{n} — {FONT_SIZE_LABELS.get(n, 'Orta')}")
+
+        var.trace_add("write", sync)
+
         def on_change(_e=None, v=var, c=combo) -> None:
             v.set(_parse_font_combo(c.get(), int(v.get())))
             self._refresh_preview()
@@ -381,12 +409,12 @@ class LabelApp(tk.Tk):
         return combo
 
     def _build_ui(self) -> None:
-        pad = {"padx": 6, "pady": 2}
+        pad = {"padx": 6, "pady": 1}
 
-        # Soft kurumsal üst şerit
-        header = tk.Frame(self, bg="#FFFFFF", highlightthickness=0)
+        # Kurumsal üst şerit: lacivert bant + altın çizgi
+        header = tk.Frame(self, bg=THEME_NAVY, highlightthickness=0)
         header.pack(side="top", fill="x")
-        head_inner = tk.Frame(header, bg="#FFFFFF")
+        head_inner = tk.Frame(header, bg=THEME_NAVY)
         head_inner.pack(fill="x", padx=14, pady=6)
 
         badge_path = assets_dir() / "biyik_badge.png"
@@ -399,43 +427,46 @@ class LabelApp(tk.Tk):
                 )
                 photo = ImageTk.PhotoImage(img)
                 self._header_photos.append(photo)
-                tk.Label(head_inner, image=photo, bg="#FFFFFF").pack(
+                tk.Label(head_inner, image=photo, bg=THEME_NAVY).pack(
                     side="left", padx=(0, 10)
                 )
             except Exception:
                 pass
 
-        titles = tk.Frame(head_inner, bg="#FFFFFF")
+        titles = tk.Frame(head_inner, bg=THEME_NAVY)
         titles.pack(side="left")
-        title_row = tk.Frame(titles, bg="#FFFFFF")
+        title_row = tk.Frame(titles, bg=THEME_NAVY)
         title_row.pack(anchor="w")
         tk.Label(
             title_row,
             text=APP_DISPLAY,
             font=("Segoe UI Semibold", 15),
-            fg="#1B3352",
-            bg="#FFFFFF",
+            fg="#FFFFFF",
+            bg=THEME_NAVY,
         ).pack(side="left")
         tk.Label(
             titles,
-            text="Biyik.dev",
-            font=("Segoe UI Semibold", 10),
-            fg="#B8962E",
-            bg="#FFFFFF",
+            text="Biyik.dev  ·  Seri barkod etiket baskısı",
+            font=("Segoe UI", 10),
+            fg="#E2C66F",
+            bg=THEME_NAVY,
         ).pack(anchor="w")
 
-        head_tools = tk.Frame(head_inner, bg="#FFFFFF")
+        head_tools = tk.Frame(head_inner, bg=THEME_NAVY)
         head_tools.pack(side="right")
         for text, icon, cmd in (
             ("Kullanım", "book-open", self.show_help),
             ("Hakkında", "circle-info", self.show_about),
             ("Güncelleme", "cloud-arrow-down", lambda: self.check_updates(silent=False)),
         ):
-            icon_button(head_tools, text, icon, cmd, self._icons, size=13, fill=C_NAVY).pack(
+            icon_button(
+                head_tools, text, icon, cmd, self._icons, size=13, fill="#FFFFFF",
+                style="Header.TButton",
+            ).pack(
                 side="left", padx=(6, 0)
             )
 
-        self._header_sep = tk.Frame(self, bg="#E6E9EE", height=1)
+        self._header_sep = tk.Frame(self, bg=THEME_GOLD, height=3)
         self._header_sep.pack(side="top", fill="x")
         self._build_update_banner()
 
@@ -463,7 +494,8 @@ class LabelApp(tk.Tk):
             "flask",
             self.print_test,
             self._icons,
-            fill=C_GOLD,
+            fill="#6E4E00",
+            style="Warm.TButton",
         ).pack(side="left", padx=4)
         icon_button(
             actions,
@@ -481,7 +513,7 @@ class LabelApp(tk.Tk):
             self.print_all,
             self._icons,
             fill="#FFFFFF",
-            style="Primary.TButton",
+            style="Success.TButton",
         ).pack(side="left", padx=4)
         icon_button(
             actions,
@@ -509,7 +541,8 @@ class LabelApp(tk.Tk):
             top, "Seç…", "folder-open", self.browse_excel, self._icons, fill=C_GOLD
         ).grid(row=0, column=2, **pad)
         icon_button(
-            top, "Yükle", "file-arrow-up", self.load_excel, self._icons, fill=C_GREEN
+            top, "Yükle", "file-arrow-up", self.load_excel, self._icons, fill="#FFFFFF",
+            style="Primary.TButton",
         ).grid(row=0, column=3, **pad)
         icon_button(
             top,
@@ -581,6 +614,7 @@ class LabelApp(tk.Tk):
             settings, textvariable=self.dpi_var, values=("203", "300", "600"), width=6
         ).grid(row=0, column=7, sticky="w", **pad)
         self.dpi_var.trace_add("write", lambda *_: self._refresh_preview())
+        self.dpi_var.trace_add("write", lambda *_: self._check_printer(auto=False))
 
         field("Kopya", self.copies_var, 1, 0)
         field("Yoğunluk", self.density_var, 1, 1)
@@ -821,7 +855,8 @@ class LabelApp(tk.Tk):
             self.open_layout,
             self._icons,
             size=12,
-            fill=C_TEAL,
+            fill="#FFFFFF",
+            style="Primary.TButton",
         ).pack(side="top", fill="x")
         self.fit_note_var = tk.StringVar()
         self.fit_note_lbl = ttk.Label(
@@ -831,7 +866,7 @@ class LabelApp(tk.Tk):
 
         # Başlangıç boyutu yalnızca ilk layout için; sonra alanla ölçeklenir
         self.preview_canvas = tk.Canvas(
-            tab_visual, width=260, height=120, bg="#F0F0F0", highlightthickness=0
+            tab_visual, width=260, height=120, bg="#F4F7FB", highlightthickness=0
         )
         self.preview_canvas.pack(fill="both", expand=True, padx=6, pady=6)
         self.preview_canvas.bind("<Configure>", self._on_preview_configure)
@@ -944,12 +979,55 @@ class LabelApp(tk.Tk):
             self.printer_var.set(choice)
         self._check_printer()
 
-    def _check_printer(self) -> None:
-        """Seçili yazıcının TSPL uyumluluğunu göster."""
-        result = check_printer(self.printer_var.get())
+    def _printer_dpi_info(self, name: str) -> tuple[int | None, str]:
+        """Yazıcının gerçek DPI'sı: önce sürücüden, yoksa model adından (önbellekli)."""
+        cache = self.__dict__.setdefault("_dpi_cache", {})
+        if name not in cache:
+            dpi, source = printer_dpi(name), "sürücü"
+            if not dpi:
+                dpi, source = guess_dpi(name), "model adı"
+            cache[name] = (dpi, source if dpi else "")
+        return cache[name]
+
+    def _selected_dpi(self) -> int | None:
+        try:
+            return int(float(self.dpi_var.get()))
+        except (ValueError, tk.TclError):
+            return None
+
+    def _check_printer(self, auto: bool = True) -> None:
+        """
+        Seçili yazıcının TSPL uyumluluğunu ve DPI uyumunu göster.
+        TSPL koordinatları yazıcının kendi noktasıyla okunur: seçili DPI yazıcınınkinden
+        farklıysa etiket orantısız büyür/küçülür ve kayar (önizleme bunu göstermez).
+        """
+        if not hasattr(self, "printer_hint"):
+            return
+        name = self.printer_var.get()
+        result = check_printer(name)
         color = {PRINTER_OK: C_GREEN, PRINTER_WARN: "#D93025"}.get(result.status, C_WARN)
         mark = {PRINTER_OK: "✓", PRINTER_WARN: "⚠"}.get(result.status, "?")
-        self.printer_hint_var.set(f"{mark} {result.message}")
+        text = f"{mark} {result.message}"
+
+        dpi, source = self._printer_dpi_info(name) if name else (None, "")
+        if auto and dpi and source == "sürücü" and self._selected_dpi() != dpi:
+            self.dpi_var.set(str(dpi))  # trace bu fonksiyonu auto=False ile yeniden çağırır
+            self.status_var.set(f"DPI yazıcı sürücüsünden alındı: {dpi}")
+            return
+        selected = self._selected_dpi()
+        if dpi and selected and selected != dpi:
+            ratio = selected / dpi
+            text = (
+                f"⚠ Yazıcı {dpi} DPI ({source}), programda {selected} DPI seçili → etiket "
+                f"{f'{ratio:.2f}'.replace('.', ',')} kat {'büyük' if ratio > 1 else 'küçük'} ve kaymış basılır. "
+                f"DPI’yı {dpi} yapın."
+            )
+            color = "#D93025"
+        elif dpi:
+            text += f"  {dpi} DPI ({source} bilgisi) ✓"
+        elif result.status != PRINTER_WARN:
+            text += "  DPI’yı yazıcınızın etiketindeki değere göre seçin (203 / 300)."
+        self.printer_hint_var.set(text)
         self.printer_hint.configure(foreground=color)
 
     def browse_excel(self) -> None:
@@ -1192,6 +1270,13 @@ class LabelApp(tk.Tk):
                 auto_fit=bool(self.auto_fit_var.get()),
                 ak_position=self.ak_pos_var.get() or "below",
                 text_mode=self.text_mode_var.get() or "graphic",
+                font_parca=max(0, min(4, int(self.font_parca_var.get()))),
+                ak_barcode_narrow=max(0, min(6, int(_num(self.ak_narrow_var)))),
+                content_valign=self.valign_var.get() or "center",
+                direction=0 if int(_num(self.direction_var)) == 0 else 1,
+                qr_cell=max(0, min(10, int(_num(self.qr_cell_var)))),
+                element_align=dict(self.element_align),
+                element_offsets={k: list(v) for k, v in self.element_offsets.items()},
             )
         except (ValueError, tk.TclError) as exc:
             if "DPI" in str(exc):
@@ -1233,6 +1318,7 @@ class LabelApp(tk.Tk):
                 "gap_after_text_mm": s.gap_after_text_mm,
                 "gap_between_barcodes_mm": s.gap_between_barcodes_mm,
                 "margin_mm": s.margin_mm,
+                "direction": s.direction,
                 **{key: getattr(s, key) for key in LAYOUT_DEFAULTS},
                 "excel_columns": self.column_headers.as_dict(),
             }
@@ -1405,13 +1491,31 @@ class LabelApp(tk.Tk):
 
     def _confirm_printer(self, printer: str) -> bool:
         result = check_printer(printer)
-        if result.status != PRINTER_WARN:
-            return True
-        return messagebox.askyesno(
+        if result.status == PRINTER_WARN and not messagebox.askyesno(
             "Yazıcı uyumluluğu",
             f"“{printer}”\n\n{result.message}\n\nYine de gönderilsin mi?",
             parent=self,
-        )
+        ):
+            return False
+        dpi, source = self._printer_dpi_info(printer)
+        selected = self._selected_dpi()
+        if dpi and selected and selected != dpi:
+            ratio = selected / dpi
+            answer = messagebox.askyesnocancel(
+                "DPI uyuşmuyor",
+                f"“{printer}” {dpi} DPI ({source} bilgisi), programda {selected} DPI seçili.\n\n"
+                f"Bu durumda etiket {f'{ratio:.2f}'.replace('.', ',')} kat {'büyük' if ratio > 1 else 'küçük'} ve "
+                "kaymış basılır; önizleme bunu göstermez.\n\n"
+                f"Evet: DPI’yı {dpi} yap ve bas\n"
+                f"Hayır: yine de {selected} DPI ile bas\n"
+                "İptal: vazgeç",
+                parent=self,
+            )
+            if answer is None:
+                return False
+            if answer:
+                self.dpi_var.set(str(dpi))
+        return True
 
     def print_test(self) -> None:
         """Geliştirici örnek şablonu basar (font Orta; marka: BYK PROJECT)."""
@@ -1464,10 +1568,16 @@ class LabelApp(tk.Tk):
             fg="#5C4A12",
             font=("Segoe UI Semibold", 10),
         ).pack(side="left")
-        ttk.Button(inner, text="Kapat", command=self._update_banner.pack_forget).pack(
+        ttk.Button(
+            inner, text="Kapat", command=self._update_banner.pack_forget,
+            style=button_style(inner),
+        ).pack(
             side="right"
         )
-        ttk.Button(inner, text="Güncelle…", command=self._show_update_dialog).pack(
+        ttk.Button(
+            inner, text="Güncelle…", command=self._show_update_dialog,
+            style=button_style(inner, "Primary.TButton"),
+        ).pack(
             side="right", padx=6
         )
 

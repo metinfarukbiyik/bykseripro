@@ -105,12 +105,20 @@ def _render_symbol(bc: LayoutBarcode, target_w: int, target_h: int) -> Image.Ima
     return _make_linear(bc.data, bc.code_type, target_w, target_h)
 
 
-def render_label_image(label: LabelData, settings: LabelSettings) -> Image.Image:
+def render_label_image(
+    label: LabelData,
+    settings: LabelSettings,
+    highlight: str | None = None,
+    center_guide: bool = False,
+    layout=None,
+) -> Image.Image:
     """
     Etiketi yazıcı çözünürlüğünde (1 piksel = 1 dot) çizer.
     Barkod ve metinler TSPL'deki x/y değerleriyle aynı yere konur → kağıtla birebir.
+    highlight: seçili öğe grubu (mavi çerçeve); taşan gruplar kırmızı çerçevelenir.
+    Bu işaretler yalnız ekrandadır, basılmaz.
     """
-    layout = compute_layout(label, settings)
+    layout = layout or compute_layout(label, settings)
     w, h = max(1, layout.width), max(1, layout.height)
     img = Image.new("RGB", (w, h), "white")
     draw = ImageDraw.Draw(img)
@@ -154,6 +162,17 @@ def render_label_image(label: LabelData, settings: LabelSettings) -> Image.Image
             box = (sh.x, sh.y, min(w, sh.x + sh.width), min(h, sh.y + sh.height))
             img.paste(ImageOps.invert(img.crop(box)), box[:2])
 
+    if center_guide:
+        for y in range(0, h, 10):
+            draw.line([w // 2, y, w // 2, min(h, y + 5)], fill="#2F6BDA", width=2)
+    pad = max(3, w // 200)
+    for group in layout.out_of_bounds:
+        x0, y0, x1, y1 = layout.group_boxes[group]
+        draw.rectangle([x0 - pad, y0 - pad, x1 + pad, y1 + pad], outline="#D93025", width=max(2, pad))
+    if highlight and highlight in layout.group_boxes:
+        x0, y0, x1, y1 = layout.group_boxes[highlight]
+        draw.rectangle([x0 - pad, y0 - pad, x1 + pad, y1 + pad], outline="#2F6BDA", width=max(2, pad))
+
     border = "#D93025" if layout.overflow else "#CCCCCC"
     draw.rectangle([0, 0, w - 1, h - 1], outline=border, width=4 if layout.overflow else 2)
     return img
@@ -164,9 +183,10 @@ def render_label_photoimage(
     settings: LabelSettings,
     max_side: int = 320,
     max_size: tuple[int, int] | None = None,
+    **render_opts,
 ) -> tuple[ImageTk.PhotoImage, Image.Image]:
     """Tkinter'da gösterilecek PhotoImage + ham PIL görüntüsü (alana sığdırılmış)."""
-    base = render_label_image(label, settings)
+    base = render_label_image(label, settings, **render_opts)
     box_w, box_h = max_size or (max_side, max_side)
     ratio = min(box_w / base.width, box_h / base.height)
     if ratio != 1:

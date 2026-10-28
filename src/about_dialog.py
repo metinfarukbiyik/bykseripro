@@ -58,28 +58,23 @@ def open_about(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
     win.transient(parent)
     win.grab_set()
 
-    width, height = 500, 580
-    win.geometry(f"{width}x{height}")
-    win.update_idletasks()
-    px = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
-    py = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
-    win.geometry(f"+{max(0, px)}+{max(0, py)}")
+    width = 500
 
     photos: list[ImageTk.PhotoImage] = []
     icons = IconStore()
 
-    # --- Soft üst alan: badge + uygulama adı ---
-    header = tk.Frame(win, bg=C_CARD)
+    # --- Lacivert üst bant: badge + uygulama adı (ana pencereyle aynı) ---
+    header = tk.Frame(win, bg=C_NAVY)
     header.pack(fill="x")
 
-    head_inner = tk.Frame(header, bg=C_CARD)
-    head_inner.pack(fill="x", padx=28, pady=22)
+    head_inner = tk.Frame(header, bg=C_NAVY)
+    head_inner.pack(fill="x", padx=28, pady=20)
 
-    badge = _load_photo(ASSETS / "biyik_badge.png", 72, photos)
+    badge = _load_photo(ASSETS / "biyik_badge.png", 64, photos)
     if badge:
-        tk.Label(head_inner, image=badge, bg=C_CARD).pack(side="left", padx=(0, 16))
+        tk.Label(head_inner, image=badge, bg=C_NAVY).pack(side="left", padx=(0, 16))
 
-    titles = tk.Frame(head_inner, bg=C_CARD)
+    titles = tk.Frame(head_inner, bg=C_NAVY)
     titles.pack(side="left", fill="y")
 
     titled_label(
@@ -88,21 +83,21 @@ def open_about(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
         "circle-info",
         icons,
         size=18,
-        fill=C_NAVY,
+        fill="#FFFFFF",
         font=("Segoe UI Semibold", 16),
-        bg=C_CARD,
-        fg=C_NAVY,
+        bg=C_NAVY,
+        fg="#FFFFFF",
     ).pack(anchor="w")
     tk.Label(
         titles,
         text=app_title,
         font=("Segoe UI", 10),
-        fg=C_MUTED,
-        bg=C_CARD,
+        fg="#E2C66F",
+        bg=C_NAVY,
         anchor="w",
     ).pack(anchor="w", pady=(4, 0))
 
-    tk.Frame(header, bg=C_LINE, height=1).pack(fill="x")
+    tk.Frame(win, bg=C_ACCENT, height=3).pack(fill="x")
 
     # --- İçerik ---
     body = tk.Frame(win, bg=C_BG)
@@ -296,6 +291,13 @@ def open_about(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
     icon_button(
         footer, "Kapat", "circle-xmark", win.destroy, icons, fill=C_MUTED
     ).pack(side="right")
+
+    # İçeriğe göre boyutlan (sabit yükseklik WhatsApp düğmesini taşırıyordu)
+    win.update_idletasks()
+    height = win.winfo_reqheight()
+    px = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
+    py = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
+    win.geometry(f"{width}x{height}+{max(0, px)}+{max(0, py)}")
 
     win._photos = photos  # type: ignore[attr-defined]
     win._icons = icons  # type: ignore[attr-defined]

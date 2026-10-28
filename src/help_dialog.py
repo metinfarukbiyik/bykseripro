@@ -1,4 +1,4 @@
-"""Kullanım kılavuzu — güncel özellikler, ipuçları ve premium yol haritası."""
+"""Kullanım kılavuzu — sade, adım adım; ana pencereyle aynı görünüm."""
 
 from __future__ import annotations
 
@@ -10,209 +10,189 @@ from PIL import Image, ImageTk
 
 from app_icon import apply_app_icon
 from paths import assets_dir
-from ui_icons import C_MUTED as ICON_MUTED
+from theme import BLUE, CARD, CARD_BORDER, GOLD, MUTED, NAVY, PAGE, TEXT
 from ui_icons import IconStore, icon_button, titled_label
 
 ASSETS = assets_dir()
 
-C_BG = "#F3F5F7"
-C_CARD = "#FFFFFF"
-C_LINE = "#E6E9EE"
-C_TEXT = "#2A3340"
-C_MUTED = "#6B7380"
-C_NAVY = "#1B3352"
-C_ACCENT = "#B8962E"
-C_CHIP = "#F0F3F7"
-C_STEP = "#E8EEF5"
+C_TIP = "#EEF4FD"
+C_TIP_EDGE = "#C9DAF6"
+C_PROBLEM = "#B4232C"
+WRAP = 520
 
 
 def _load_photo(path: Path, size: int, store: list) -> ImageTk.PhotoImage | None:
     if not path.exists():
         return None
-    img = Image.open(path).convert("RGBA")
-    img = img.resize((size, size), Image.Resampling.LANCZOS)
+    img = Image.open(path).convert("RGBA").resize((size, size), Image.Resampling.LANCZOS)
     photo = ImageTk.PhotoImage(img)
     store.append(photo)
     return photo
 
 
-def _section(parent: tk.Frame, title: str, icons: IconStore, icon: str) -> tk.Frame:
-    box = tk.Frame(parent, bg=C_CARD, highlightbackground=C_LINE, highlightthickness=1)
-    box.pack(fill="x", pady=(0, 12))
-    inner = tk.Frame(box, bg=C_CARD)
-    inner.pack(fill="x", padx=14, pady=12)
+# ── Yapı taşları ─────────────────────────────────────────────────────
+
+
+def _section(parent: tk.Frame, title: str, icon: str, icons: IconStore, lead: str = "") -> tk.Frame:
+    """Başlık kartın üstünde, içerik beyaz kartta (ana penceredeki gibi)."""
     titled_label(
-        inner,
-        title,
-        icon,
-        icons,
-        size=14,
-        fill=C_NAVY,
-        font=("Segoe UI Semibold", 11),
-        bg=C_CARD,
-        fg=C_NAVY,
-    ).pack(fill="x")
-    tk.Frame(inner, bg=C_ACCENT, height=2).pack(anchor="w", pady=(4, 10), ipadx=22)
+        parent, title, icon, icons, size=15, fill=BLUE,
+        font=("Segoe UI Semibold", 12), bg=PAGE, fg=NAVY,
+    ).pack(fill="x", pady=(6, 2))
+    if lead:
+        tk.Label(
+            parent, text=lead, font=("Segoe UI", 9), fg=MUTED, bg=PAGE,
+            wraplength=WRAP + 40, justify="left", anchor="w",
+        ).pack(fill="x", pady=(0, 6))
+    box = tk.Frame(parent, bg=CARD, highlightbackground=CARD_BORDER, highlightthickness=1)
+    box.pack(fill="x", pady=(0, 16))
+    inner = tk.Frame(box, bg=CARD)
+    inner.pack(fill="x", padx=16, pady=12)
     return inner
 
 
-def _p(parent: tk.Frame, text: str, *, muted: bool = False, bold: bool = False) -> None:
+def _text(parent: tk.Frame, text: str, *, muted: bool = False, bold: bool = False) -> None:
     tk.Label(
-        parent,
-        text=text,
-        font=("Segoe UI Semibold", 9) if bold else ("Segoe UI", 9),
-        fg=C_MUTED if muted else C_TEXT,
-        bg=parent.cget("bg") if parent.cget("bg") else C_CARD,
-        wraplength=520,
-        justify="left",
-        anchor="w",
+        parent, text=text,
+        font=("Segoe UI Semibold", 10) if bold else ("Segoe UI", 10),
+        fg=MUTED if muted else TEXT, bg=parent.cget("bg"),
+        wraplength=WRAP, justify="left", anchor="w",
     ).pack(fill="x", pady=(0, 6))
 
 
-def _bullet(parent: tk.Frame, text: str) -> None:
-    bg = parent.cget("bg") or C_CARD
-    row = tk.Frame(parent, bg=bg)
-    row.pack(fill="x", pady=1)
-    tk.Label(row, text="•", font=("Segoe UI", 9), fg=C_ACCENT, bg=bg, width=2).pack(
-        side="left", anchor="n"
-    )
+def _step(parent: tk.Frame, num: int, title: str, detail: str) -> None:
+    """Numaralı adım: mavi daire + başlık + açıklama."""
+    row = tk.Frame(parent, bg=CARD)
+    row.pack(fill="x", pady=5)
+    badge = tk.Canvas(row, width=28, height=28, bg=CARD, highlightthickness=0)
+    badge.create_oval(2, 2, 26, 26, fill=BLUE, outline=BLUE)
+    badge.create_text(14, 14, text=str(num), fill="#FFFFFF", font=("Segoe UI Semibold", 10))
+    badge.pack(side="left", anchor="n", padx=(0, 12))
+    col = tk.Frame(row, bg=CARD)
+    col.pack(side="left", fill="x", expand=True)
     tk.Label(
-        row,
-        text=text,
-        font=("Segoe UI", 9),
-        fg=C_TEXT,
-        bg=bg,
-        wraplength=500,
-        justify="left",
-        anchor="w",
+        col, text=title, font=("Segoe UI Semibold", 10), fg=NAVY, bg=CARD, anchor="w",
+    ).pack(fill="x")
+    tk.Label(
+        col, text=detail, font=("Segoe UI", 9), fg=TEXT, bg=CARD,
+        wraplength=WRAP - 40, justify="left", anchor="w",
+    ).pack(fill="x", pady=(1, 0))
+
+
+def _item(parent: tk.Frame, name: str, detail: str) -> None:
+    """Kalın ad + açıklama satırı."""
+    row = tk.Frame(parent, bg=CARD)
+    row.pack(fill="x", pady=3)
+    tk.Label(row, text="•", font=("Segoe UI", 10), fg=GOLD, bg=CARD).pack(side="left", anchor="n")
+    tk.Label(
+        row, text=name, font=("Segoe UI Semibold", 9), fg=NAVY, bg=CARD, anchor="nw",
+    ).pack(side="left", anchor="n", padx=(6, 6))
+    tk.Label(
+        row, text=detail, font=("Segoe UI", 9), fg=TEXT, bg=CARD,
+        wraplength=WRAP - 150, justify="left", anchor="w",
     ).pack(side="left", fill="x", expand=True)
 
 
-def _chip_row(parent: tk.Frame, items: list[str]) -> None:
-    wrap = tk.Frame(parent, bg=C_CARD)
-    wrap.pack(fill="x", pady=(2, 8))
-    for text in items:
-        chip = tk.Frame(wrap, bg=C_CHIP, highlightbackground=C_LINE, highlightthickness=1)
-        chip.pack(side="left", padx=(0, 6), pady=3)
-        tk.Label(
-            chip,
-            text=text,
-            font=("Segoe UI", 8),
-            fg=C_NAVY,
-            bg=C_CHIP,
-            padx=8,
-            pady=3,
-        ).pack()
+def _table(parent: tk.Frame, rows: list[tuple[str, str, str]]) -> None:
+    """Excel sütun tablosu: sütun · rol · zorunlu mu."""
+    grid = tk.Frame(parent, bg=CARD_BORDER)
+    grid.pack(fill="x", pady=(2, 8))
+    for r, cells in enumerate(rows):
+        head = r == 0
+        for c, value in enumerate(cells):
+            tk.Label(
+                grid, text=value,
+                font=("Segoe UI Semibold", 9) if head else ("Segoe UI", 9),
+                fg=NAVY if head else TEXT, bg="#F1F5FB" if head else CARD,
+                anchor="w", padx=10, pady=5,
+            ).grid(row=r, column=c, sticky="nsew", padx=(0 if c == 0 else 1, 0), pady=(0 if r == 0 else 1, 0))
+    for c, w in enumerate((1, 3, 1)):
+        grid.columnconfigure(c, weight=w)
 
 
-def _step(parent: tk.Frame, num: str, title: str, detail: str) -> None:
-    row = tk.Frame(parent, bg=C_STEP)
+def _tip(parent: tk.Frame, text: str) -> None:
+    box = tk.Frame(parent, bg=C_TIP, highlightbackground=C_TIP_EDGE, highlightthickness=1)
+    box.pack(fill="x", pady=(4, 2))
+    tk.Label(
+        box, text=f"İpucu:  {text}", font=("Segoe UI", 9), fg=NAVY, bg=C_TIP,
+        wraplength=WRAP - 20, justify="left", anchor="w", padx=10, pady=7,
+    ).pack(fill="x")
+
+
+def _problem(parent: tk.Frame, problem: str, solution: str) -> None:
+    row = tk.Frame(parent, bg=CARD)
     row.pack(fill="x", pady=4)
-    inner = tk.Frame(row, bg=C_STEP)
-    inner.pack(fill="x", padx=10, pady=8)
-    head = tk.Frame(inner, bg=C_STEP)
-    head.pack(fill="x")
     tk.Label(
-        head,
-        text=num,
-        font=("Segoe UI Semibold", 10),
-        fg=C_ACCENT,
-        bg=C_STEP,
-        width=3,
-        anchor="w",
-    ).pack(side="left")
+        row, text=problem, font=("Segoe UI Semibold", 9), fg=C_PROBLEM, bg=CARD, anchor="w",
+    ).pack(fill="x")
     tk.Label(
-        head,
-        text=title,
-        font=("Segoe UI Semibold", 9),
-        fg=C_NAVY,
-        bg=C_STEP,
-        anchor="w",
-    ).pack(side="left")
-    tk.Label(
-        inner,
-        text=detail,
-        font=("Segoe UI", 9),
-        fg=C_TEXT,
-        bg=C_STEP,
-        wraplength=500,
-        justify="left",
-        anchor="w",
-    ).pack(fill="x", pady=(4, 0))
+        row, text=f"→ {solution}", font=("Segoe UI", 9), fg=TEXT, bg=CARD,
+        wraplength=WRAP, justify="left", anchor="w",
+    ).pack(fill="x", padx=(10, 0))
+
+
+# ── Pencere ──────────────────────────────────────────────────────────
 
 
 def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
-    """Güncel Kullanım kılavuzu."""
+    """Kullanım kılavuzu."""
     win = tk.Toplevel(parent)
     win.title("Kullanım Kılavuzu")
     apply_app_icon(win)
-    win.configure(bg=C_BG)
+    win.configure(bg=PAGE)
     win.resizable(True, True)
-    win.minsize(600, 540)
+    win.minsize(600, 520)
     win.transient(parent)
     win.grab_set()
 
-    width, height = 640, 720
-    win.geometry(f"{width}x{height}")
-    win.update_idletasks()
+    width = 640
+    height = min(760, max(560, parent.winfo_height() - 40))
+    bar = max(0, parent.winfo_rooty() - parent.winfo_y())
     px = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
-    py = parent.winfo_rooty() + max(0, (parent.winfo_height() - height) // 2)
-    win.geometry(f"+{max(0, px)}+{max(0, py)}")
+    py = parent.winfo_rooty() + (parent.winfo_height() - height) // 2 - bar
+    win.geometry(f"{width}x{height}+{max(0, px)}+{max(0, py)}")
 
     photos: list[ImageTk.PhotoImage] = []
     icons = IconStore()
 
-    header = tk.Frame(win, bg=C_CARD)
+    # Lacivert başlık bandı (ana pencereyle aynı)
+    header = tk.Frame(win, bg=NAVY)
     header.pack(fill="x")
-    head_inner = tk.Frame(header, bg=C_CARD)
-    head_inner.pack(fill="x", padx=22, pady=16)
-
-    badge = _load_photo(ASSETS / "biyik_badge.png", 52, photos)
+    head_inner = tk.Frame(header, bg=NAVY)
+    head_inner.pack(fill="x", padx=22, pady=14)
+    badge = _load_photo(ASSETS / "biyik_badge.png", 44, photos)
     if badge:
-        tk.Label(head_inner, image=badge, bg=C_CARD).pack(side="left", padx=(0, 12))
-
-    titles = tk.Frame(head_inner, bg=C_CARD)
+        tk.Label(head_inner, image=badge, bg=NAVY).pack(side="left", padx=(0, 12))
+    titles = tk.Frame(head_inner, bg=NAVY)
     titles.pack(side="left")
     titled_label(
-        titles,
-        "Kullanım Kılavuzu",
-        "book-open",
-        icons,
-        size=18,
-        fill=C_ACCENT,
-        font=("Segoe UI Semibold", 15),
-        bg=C_CARD,
-        fg=C_NAVY,
+        titles, "Kullanım Kılavuzu", "book-open", icons, size=17, fill="#FFFFFF",
+        font=("Segoe UI Semibold", 15), bg=NAVY, fg="#FFFFFF",
     ).pack(anchor="w")
     tk.Label(
-        titles,
-        text=app_title,
-        font=("Segoe UI", 9),
-        fg=C_MUTED,
-        bg=C_CARD,
-        anchor="w",
+        titles, text=f"{app_title}  ·  Excel’den etikete, 5 adımda",
+        font=("Segoe UI", 9), fg="#E2C66F", bg=NAVY, anchor="w",
     ).pack(anchor="w", pady=(2, 0))
+    tk.Frame(win, bg=GOLD, height=3).pack(fill="x")
+
+    # Alt çubuk (kaydırılan alanın dışında)
+    footer = tk.Frame(win, bg=PAGE)
+    footer.pack(side="bottom", fill="x", padx=22, pady=(6, 12))
     tk.Label(
-        titles,
-        text="Excel → önizleme → TSPL etiket baskısı  ·  BIYIK.DEV",
-        font=("Segoe UI", 8),
-        fg=C_ACCENT,
-        bg=C_CARD,
-        anchor="w",
-    ).pack(anchor="w", pady=(4, 0))
+        footer, text="Destek: metin@biyik.dev", font=("Segoe UI", 9), fg=MUTED, bg=PAGE,
+    ).pack(side="left")
 
-    tk.Frame(header, bg=C_LINE, height=1).pack(fill="x")
-
-    shell = tk.Frame(win, bg=C_BG)
+    # Kaydırılabilir içerik
+    shell = tk.Frame(win, bg=PAGE)
     shell.pack(fill="both", expand=True)
-
-    canvas = tk.Canvas(shell, bg=C_BG, highlightthickness=0)
-    scroll = ttk.Scrollbar(shell, orient="vertical", command=canvas.yview)
+    canvas = tk.Canvas(shell, bg=PAGE, highlightthickness=0)
+    scroll = ttk.Scrollbar(
+        shell, orient="vertical", command=canvas.yview, style="Page.Vertical.TScrollbar"
+    )
     canvas.configure(yscrollcommand=scroll.set)
     scroll.pack(side="right", fill="y")
     canvas.pack(side="left", fill="both", expand=True)
-
-    content = tk.Frame(canvas, bg=C_BG)
+    content = tk.Frame(canvas, bg=PAGE)
     win_id = canvas.create_window((0, 0), window=content, anchor="nw")
 
     def _on_configure(_e=None) -> None:
@@ -223,15 +203,14 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
     canvas.bind("<Configure>", _on_configure)
 
     def _on_mousewheel(event) -> None:
-        # Windows / macOS (MouseWheel); bazı X11: Button-4/5
         if getattr(event, "num", None) == 4:
             canvas.yview_scroll(-1, "units")
         elif getattr(event, "num", None) == 5:
             canvas.yview_scroll(1, "units")
         else:
             delta = getattr(event, "delta", 0)
-            # macOS’ta delta küçük adımlı olabilir
-            step = int(-1 * (delta / 120)) if abs(delta) >= 120 else int(-1 * delta)
+            # Windows 120'lik adımlar, macOS küçük adımlar gönderir
+            step = int(-delta / 120) if abs(delta) >= 120 else -delta
             if step == 0 and delta:
                 step = -1 if delta > 0 else 1
             canvas.yview_scroll(step, "units")
@@ -240,276 +219,93 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
     canvas.bind_all("<Button-4>", _on_mousewheel)
     canvas.bind_all("<Button-5>", _on_mousewheel)
 
-    body = tk.Frame(content, bg=C_BG)
-    body.pack(fill="both", expand=True, padx=22, pady=16)
+    body = tk.Frame(content, bg=PAGE)
+    body.pack(fill="both", expand=True, padx=22, pady=(14, 4))
 
-    # --- 1 Genel ---
-    s1 = _section(body, "1. Program ne işe yarar?", icons, "circle-question")
-    _p(
-        s1,
-        "Excel’deki satırları okuyarak TSPL uyumlu termal yazıcıya seri barkod "
-        "etiketi basar. Tek tek kopyala-yapıştır yapmadan toplu ve seçmeli baskı alır.",
+    # 1 — Hızlı başlangıç
+    s = _section(
+        body, "Hızlı başlangıç", "rocket", icons,
+        "İlk baskınız için bu beş adım yeterli.",
     )
-    _p(s1, "Öne çıkan yetenekler", bold=True)
-    _chip_row(
-        s1,
-        [
-            "Özel Excel başlıkları",
-            "Seri üretimi",
-            "QR / barkod tipi",
-            "Liste arama",
-            "Marka damgası",
-            "Canlı önizleme",
-        ],
-    )
+    _step(s, 1, "Excel’i yükleyin", "Üstte “Seç…” ile dosyanızı seçin, ardından “Yükle”. "
+          "Excel’iniz yoksa “Seri Üret…” ile numaralı liste oluşturabilirsiniz.")
+    _step(s, 2, "Yazıcıyı ve DPI’yı seçin", "Etiket yazıcınızı listeden seçin. Altında yeşil ✓ "
+          "görüyorsanız uyumludur. DPI, yazıcının etiketinde yazar (genelde 203 veya 300).")
+    _step(s, 3, "Etiket ölçüsünü girin", "“Etiket ve barkod” sekmesinde genişlik ve yüksekliği "
+          "mm olarak yazın (ör. 100 × 40).")
+    _step(s, 4, "Önizlemeye bakın", "Sağdaki önizleme kağıtta çıkacak görüntünün aynısıdır. "
+          "Kırmızı çerçeve görürseniz içerik sığmıyor demektir (bkz. Etiketi düzenleme).")
+    _step(s, 5, "Önce deneyin, sonra basın", "“Test Baskı” ile bir örnek alın. Her şey yerindeyse "
+          "“Seçilileri Bas” ya da “Tümünü Bas”. Son olarak “Ayarları Kaydet”.")
 
-    # --- 2 Excel ---
-    s2 = _section(body, "2. Excel’i nasıl hazırlarsınız?", icons, "file-excel")
-    _p(s2, "Dosya ve başlık satırı", bold=True)
-    _bullet(s2, ".xlsx veya .xlsm kullanın (örnek: Barkod.xlsx).")
-    _bullet(s2, "1. satır sütun başlığıdır; veri 2. satırdan başlar.")
-    _bullet(
-        s2,
-        "1. satırdaki isimler programda tablo, liste başlığı ve font etiketlerine yansır. "
-        "İstediğiniz adı yazabilirsiniz.",
+    # 2 — Excel
+    s = _section(
+        body, "Excel dosyası", "file-excel", icons,
+        "İlk satır başlıktır; sonraki her satır bir etiket olur.",
     )
-    _bullet(s2, "Boş satırlar atlanır. Ana barkodu boş olan satırlar basılmaz.")
+    _table(s, [
+        ("Sütun", "Etikette", ""),
+        ("1.", "Ana barkod / seri no", "zorunlu"),
+        ("2.", "İkinci barkod", "isteğe bağlı"),
+        ("3.", "Orta metin (ör. stok kodu)", "isteğe bağlı"),
+        ("4.", "Alt metin (ör. ürün adı)", "isteğe bağlı"),
+    ])
+    _text(s, "Başlık adlarını istediğiniz gibi yazabilirsiniz. İkinci barkod sütununuz "
+          "“A-K Barkod”, “M Barkod” ya da “C Barkod” olabilir; adında “barkod” geçen ikinci "
+          "sütun otomatik tanınır.", muted=True)
+    _text(s, "Boş satırlar ve ana barkodu boş olan satırlar atlanır.", muted=True)
 
-    _p(s2, "Sütun rolleri (varsayılan A → D)", bold=True)
-    _bullet(s2, "A — Ana barkod (zorunlu). Tip: Code128 / 39 / 93 / EAN / QR.")
-    _bullet(s2, "B — İkinci barkod (opsiyonel; doluysa basılır).")
-    _bullet(s2, "C — Orta metin (ör. stok / malzeme no).")
-    _bullet(s2, "D — Alt metin (ör. model / parça adı).")
+    # 3 — Liste
+    s = _section(body, "Listeyle çalışma", "table-list", icons)
+    _item(s, "Ara", "Yazdıkça liste süzülür. “Tümünü Bas” yalnızca görünen satırları basar.")
+    _item(s, "Seri ekle…", "Excel’i açmadan listeye tek seri ekleyin.")
+    _item(s, "Seçilileri çıkar", "Yanlış satırı listeden çıkarın (Delete tuşu ya da sağ tık). "
+          "Excel dosyanız değişmez.")
+    _item(s, "Geri al", "Yanlışlıkla çıkardığınızı geri getirin: Ctrl+Z (Mac’te ⌘+Z).")
+    _item(s, "Çoklu seçim", "Ctrl (Mac’te ⌘) ya da Shift ile birden çok satır seçin.")
+    _item(s, "Seri Üret…", "Önek + sayı + sonek ile liste oluşturur (ör. BYK-0001 … BYK-0100).")
 
-    chip = tk.Frame(s2, bg=C_CHIP)
-    chip.pack(fill="x", pady=(6, 4))
-    chip_in = tk.Frame(chip, bg=C_CHIP)
-    chip_in.pack(fill="x", padx=10, pady=8)
-    tk.Label(
-        chip_in,
-        text="Örnek özel başlık satırı",
-        font=("Segoe UI", 8),
-        fg=C_MUTED,
-        bg=C_CHIP,
-        anchor="w",
-    ).pack(anchor="w")
-    tk.Label(
-        chip_in,
-        text="Seri No  |  Lot Barkod  |  Stok Kodu  |  Ürün Adı",
-        font=("Consolas", 10),
-        fg=C_NAVY,
-        bg=C_CHIP,
-        anchor="w",
-    ).pack(anchor="w", pady=(2, 0))
+    # 4 — Etiketi düzenleme
+    s = _section(body, "Etiketi düzenleme", "sliders", icons)
+    _item(s, "Etiket ve barkod", "Ölçü, DPI, kopya, yoğunluk, barkod yüksekliği ve tipi "
+          "(Code 128, Code 39/93, EAN, QR).")
+    _item(s, "Fontlar ve markalama", "Yazı boyutları. “Marka bas” işaretliyse firma adınız "
+          "seçtiğiniz konum ve stille (düz, çerçeveli, siyah bant, çizgili) basılır.")
+    _item(s, "Yerleşim ayarları…", "Önizlemenin altındaki düğme ya da önizlemeye çift tık. "
+          "Her öğenin boyutu, hizası (sol/orta/sağ), çizgi kalınlığı ve boşlukları ayrı ayarlanır.")
+    _item(s, "Elle yerleştirme", "Yerleşim penceresindeki önizlemede bir öğeye tıklayıp "
+          "sürükleyin; ortaya yaklaşınca kendiliğinden ortalanır. Ok tuşlarıyla 0,5 mm "
+          "(Shift ile 2 mm) kaydırın, çift tıkla konumu sıfırlayın, Ctrl/⌘+Z ile geri alın.")
+    _tip(s, "Etikete sığmayan öğe kırmızı çerçeveyle gösterilir. “Sorunları otomatik "
+         "düzelt” düğmesi taşan öğeyi yerine alır, gerekirse 2. barkodu yan yana koyar ve "
+         "boşluk / yazı / barkod boyutunu küçültür.")
 
-    _p(
-        s2,
-        "Başlık adları serbesttir: 2. barkod “A-K Barkod”, “M Barkod”, “C Barkod” "
-        "olabilir — adında “barkod” geçen ikinci sütun otomatik 2. barkod olur. "
-        "Tanınmayan sütunlar soldan sağa sırayla kullanılır.",
-        muted=True,
-    )
+    # 5 — Sorunlar
+    s = _section(body, "Sorun mu var?", "circle-question", icons)
+    _problem(s, "Yazıcı listede görünmüyor",
+             "Yazıcının bilgisayarda kurulu olduğundan emin olun, sonra “Yenile”ye basın.")
+    _problem(s, "Etiket kaymış, çok büyük ya da çok küçük çıkıyor",
+             "Seçili DPI yazıcınızınkiyle uyuşmuyor (ör. 203 DPI yazıcıda 300 seçili). "
+             "Yazıcı adının altındaki satır uyarır; program DPI’yı sürücüden okuyabiliyorsa "
+             "kendisi ayarlar. Değilse yazıcının etiketindeki değeri (203 / 300) seçin.")
+    _problem(s, "Anlamsız karakterler basılıyor",
+             "Yazıcınız TSPL desteklemiyor olabilir (Zebra, Godex, Brother, DYMO). "
+             "Yazıcı adının altındaki uyarıya bakın.")
+    _problem(s, "Baskı kağıtta kayık",
+             "Yerleşim ayarları → Yazıcı kalibrasyonu ile mm cinsinden kaydırın.")
+    _problem(s, "Metinler bozuk ya da eksik",
+             "Yerleşim ayarları → Metin basımı → “Yazıcı fontu”nu deneyin.")
+    _problem(s, "QR ya da barkod okunmuyor",
+             "Barkod yüksekliğini (QR’da kenarı) büyütün, yoğunluğu artırın. EAN için veri "
+             "yalnızca rakam olmalıdır.")
 
-    # --- 3 Arayüz ---
-    s3 = _section(body, "3. Arayüzde neler var?", icons, "window-maximize")
-    _p(s3, "Üst alan", bold=True)
-    _bullet(s3, "Excel yolu · Seç… · Yükle · Seri Üret…")
-    _bullet(s3, "Yazıcı listesi · Yenile")
-    _p(s3, "Ayarlar", bold=True)
-    _bullet(s3, "Etiket: genişlik, yükseklik, gap, kopya, yoğunluk, barkod yükseklikleri")
-    _bullet(
-        s3,
-        "Barkod tipi: ana ve 2. barkod için Code 128, Code 39, Code 93, EAN-13, EAN-8, QR Kod",
-    )
-    _bullet(s3, "Fontlar: ana barkod / 2. barkod / metin satırları ayrı boyutta")
-    _bullet(
-        s3,
-        "Markalama: “Marka bas” işaretliyse her etikete üst/alt damga; boyut ve "
-        "stil (düz, çerçeveli, ters siyah bant, üst-alt çizgili) seçilebilir",
-    )
-    _bullet(s3, "Program imzası (BYK Seri Baskı Pro · biyik.dev) her etiketin üstünde yer alır")
-    _p(s3, "Liste ve önizleme", bold=True)
-    _bullet(s3, "Sol liste: Excel veya seri üretim satırları")
-    _bullet(s3, "Ara kutusu: listede anında filtre")
-    _bullet(s3, "Listeyi temizle: tüm etiketleri listeden siler")
-    _bullet(
-        s3,
-        "Seri ekle… / Seçilileri çıkar: Excel’i açmadan listeye tek seri ekleyin ya da "
-        "yanlış satırı çıkarın (Delete tuşu, sağ tık). Geri al: Ctrl/⌘+Z",
-    )
-    _bullet(s3, "Sağ önizleme: Görsel + TSPL sekmeleri (kağıttaki konumlarla birebir)")
-    _bullet(
-        s3,
-        "Yerleşim ayarları… (veya önizlemeye çift tık): alanları gizle/göster, "
-        "2. barkodu yan yana al, boşluklar, otomatik sığdırma, kalibrasyon",
-    )
-    _p(s3, "Alt butonlar", bold=True)
-    _bullet(s3, "Test Baskı · Seçilileri Bas · Tümünü Bas · Ayarları Kaydet · Kullanım · Hakkında")
-
-    # --- 3b Seri ---
-    s3b = _section(body, "3b. Otomatik seri üretimi", icons, "wand-magic-sparkles")
-    _p(
-        s3b,
-        "Excel olmadan da etiket üretebilirsiniz. Üstteki Seri Üret… ile önek, "
-        "başlangıç numarası, adet, adım, sonek ve sıfır doldurma ayarlayın.",
-    )
-    _bullet(s3b, "Örnek: önek BYK-, başlangıç 1, adet 10, pad 4 → BYK-0001 … BYK-0010")
-    _bullet(s3b, "İsteğe bağlı sabit orta/alt metin ve 2. barkod önek/sonek")
-    _bullet(s3b, "Listeyi değiştir veya mevcut listenin sonuna ekle")
-    _bullet(s3b, "En fazla 5000 satır; büyük listelerde Ara ile daraltın")
-
-    # --- 3c Barkod tipleri ---
-    s3c = _section(body, "3c. Barkod tipleri ve QR", icons, "qrcode")
-    _p(
-        s3c,
-        "Ayarlar satırında Ana barkod tipi ve 2. barkod tipi ayrı seçilir. "
-        "Önizleme ve TSPL komutları seçime göre üretilir.",
-    )
-    _bullet(s3c, "Code 128 — genel amaçlı (varsayılan)")
-    _bullet(s3c, "Code 39 / Code 93 — endüstriyel / lojistik")
-    _bullet(s3c, "EAN-13 / EAN-8 — perakende (sayısal veri; eksik basamaklar doldurulur)")
-    _bullet(s3c, "QR Kod — kare kod; yükseklik (mm) alanı kare kenar olarak kullanılır")
-    _p(
-        s3c,
-        "Not: EAN için veri rakamlardan oluşmalıdır. QR’da uzun metinler daha büyük "
-        "sembol ister; kenarı büyütün veya etiketi büyütün.",
-        muted=True,
-    )
-
-    # --- 4 Adımlar ---
-    s4 = _section(body, "4. Adım adım kullanım", icons, "list-ol")
-    _step(
-        s4,
-        "01",
-        "Veri kaynağını seçin",
-        "Excel: Seç… / Yükle — veya Excel’siz Seri Üret… ile numaralı liste oluşturun. "
-        "Tablo başlıkları Excel 1. satırından gelir.",
-    )
-    _step(
-        s4,
-        "02",
-        "Yazıcıyı seçin",
-        "TSPL uyumlu termal etiket yazıcınızı seçin (Xprinter, TSC, Gprinter, "
-        "HPRT, iDPRT, Rongta…). Altındaki satır uyumluluğu gösterir. "
-        "DPI’yı yazıcınıza göre (203 / 300) seçin. Görünmüyorsa Yenile.",
-    )
-    _step(
-        s4,
-        "03",
-        "Boyut, tip ve yoğunluğu ayarlayın",
-        "98×98 mm varsayılan. Ana / 2. barkod tipini (128, 39, 93, EAN, QR) seçin. "
-        "QR’da yükseklik = kare kenar (mm).",
-    )
-    _step(
-        s4,
-        "04",
-        "Fontları ayarlayın",
-        "Her alan için ayrı font (Küçük → Çok büyük). Etiketler Excel "
-        "başlık adlarıyla güncellenir.",
-    )
-    _step(
-        s4,
-        "05",
-        "Markalama (isteğe bağlı)",
-        "Marka metni + Üst/Alt konum. Boş bırakırsanız damga basılmaz.",
-    )
-    _step(
-        s4,
-        "06",
-        "Ara / filtreleyin (isteğe bağlı)",
-        "Liste üstündeki Ara kutusuna yazarak satırları daraltın; "
-        "yalnızca görünen satırlardan seçim yapıp basabilirsiniz.",
-    )
-    _step(
-        s4,
-        "07",
-        "Önizlemeyi kontrol edin",
-        "Satır seçin → Görsel sekmesi yerleşim, TSPL sekmesi yazıcı komutları.",
-    )
-    _step(
-        s4,
-        "08",
-        "Baskı alın",
-        "Test Baskı: örnek şablon.\n"
-        "Seçilileri Bas: Ctrl ile çoklu seçim.\n"
-        "Tümünü Bas: listedeki tüm etiketler (filtre açıkken yalnızca görünenler).",
-    )
-    _step(
-        s4,
-        "09",
-        "Ayarları kaydedin",
-        "Yazıcı, boyut, barkod tipi, font, marka ve sütun adları saklanır; "
-        "sonraki açılışta aynı tercihlerle gelir.",
-    )
-
-    # --- 5 Yerleşim ---
-    s5 = _section(body, "5. Etiket üzerindeki sıra", icons, "layer-group")
-    _p(s5, "Kağıt üzerinde yukarıdan aşağı:")
-    _bullet(s5, "Program imzası (her zaman, küçük punto)")
-    _bullet(s5, "Marka damgası (üst seçildiyse)")
-    _bullet(s5, "Ana barkod / QR + insan okunur metin (ortalı)")
-    _bullet(s5, "İkinci barkod / QR (varsa) + metni (ortalı)")
-    _bullet(s5, "Orta metin (Excel 3. sütun)")
-    _bullet(s5, "Alt metin (Excel 4. sütun)")
-    _bullet(s5, "Marka damgası (alt seçildiyse)")
-    _p(
-        s5,
-        "Uzun metinler satırlara bölünür ve her satır ortalanır. Dar etiketlerde "
-        "(ör. 100×40 mm) “Yerleşim ayarları → Dar etiket önerisi” 2. barkodu yan "
-        "yana alır; “Otomatik sığdır” açıksa içerik kağıda sığacak kadar küçülür. "
-        "Sığmayan etikette önizleme kırmızı çerçeve gösterir.",
-        muted=True,
-    )
-
-    # --- 6 Test ---
-    s6 = _section(body, "6. Test Baskı (örnek)", icons, "flask")
-    _p(
-        s6,
-        "Listedeki satırı değil; sabit örnek şablonu basar. Yazıcı ve yerleşimi "
-        "doğrulamak içindir. Örnekte marka BYK PROJECT üstte basılır; "
-        "uygulamadaki marka alanı kullanılmaz.",
-    )
-
-    # --- 7 Sorun ---
-    s7 = _section(body, "7. Sık karşılaşılan durumlar", icons, "triangle-exclamation")
-    _bullet(s7, "Liste boş: A sütunu dolu mu veya Seri Üret ile satır oluşturdunuz mu?")
-    _bullet(s7, "Başlıklar eski kaldı: Excel’i yeniden Yükle’ye basın.")
-    _bullet(s7, "Yazıcı yok: Windows Yazıcılar veya macOS Yazıcılar & Tarayıcılar’da etiket yazıcısı ekli olmalı.")
-    _bullet(s7, "Etiket çok küçük / büyük basılıyor: DPI yanlış; 300 DPI yazıcıda 300 seçin.")
-    _bullet(s7, "Anlamsız karakterler basılıyor: yazıcı TSPL desteklemiyor (ör. Zebra, Godex, Brother).")
-    _bullet(s7, "macOS baskı hatası: yazıcıyı yeniden ekleyin; uygulama raw (TSPL) gönderir.")
-    _bullet(s7, "QR okunmuyor: kenarı (yükseklik mm) büyütün; yoğunluğu artırın.")
-    _bullet(s7, "EAN hata: verinin rakam olduğundan emin olun.")
-    _bullet(s7, "Barkod kayık / küçük: önizleme + font / yükseklik ayarı.")
-    _bullet(s7, "2. barkod basılmıyor: B sütunu boşsa bilinçli olarak atlanır.")
-    _bullet(s7, "Filtre sonrası az satır: Ara kutusunu temizleyin.")
-    _bullet(
-        s7,
-        "Baskı kağıtta kayık: Yerleşim ayarları → Yazıcı kalibrasyonu ile mm kaydırın.",
-    )
-    _bullet(
-        s7,
-        "Metinler bozuk / basılmıyor: Yerleşim ayarları → Metin basımı “Yazıcı fontu” deneyin.",
-    )
-    _bullet(s7, "Güncelleme: açılışta otomatik denetlenir; elle “Güncelleme” butonu.")
-
-    # --- 8 Destek ---
-    s8 = _section(body, "8. Destek", icons, "headset")
-    _bullet(s8, "E-posta: metin@biyik.dev")
-    _bullet(s8, "Geliştirici: Metin Faruk BIYIK · BIYIK.DEV")
-
-    footer = tk.Frame(win, bg=C_BG)
-    footer.pack(fill="x", padx=22, pady=(0, 14))
-    icon_button(
-        footer, "Kapat", "circle-xmark", lambda: _close(), icons, fill=ICON_MUTED
-    ).pack(side="right")
-    tk.Label(
-        footer,
-        text="BIYIK.DEV  ·  Destek: metin@biyik.dev",
-        font=("Segoe UI", 8),
-        fg=C_MUTED,
-        bg=C_BG,
-    ).pack(side="left")
+    # 6 — Güncelleme ve destek
+    s = _section(body, "Güncelleme ve destek", "headset", icons)
+    _text(s, "Program açılışta yeni sürümü kendisi kontrol eder. Yeni sürüm varsa "
+          "“Güncelleme geldi” penceresi çıkar; “Şimdi güncelle” deyin, ayarlarınız korunur. "
+          "Üstteki “Güncelleme” düğmesiyle istediğiniz zaman kontrol edebilirsiniz.")
+    _text(s, "Yardım için: metin@biyik.dev  ·  Hakkında penceresinden WhatsApp ile de "
+          "ulaşabilirsiniz.", muted=True)
 
     def _close() -> None:
         for seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
@@ -518,6 +314,10 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
             except tk.TclError:
                 pass
         win.destroy()
+
+    icon_button(
+        footer, "Kapat", "circle-xmark", _close, icons, fill="#FFFFFF", style="Primary.TButton",
+    ).pack(side="right")
 
     win._photos = photos  # type: ignore[attr-defined]
     win._icons = icons  # type: ignore[attr-defined]
