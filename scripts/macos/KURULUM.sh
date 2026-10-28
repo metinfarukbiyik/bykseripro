@@ -6,16 +6,18 @@ cd "$(dirname "$0")"
 APP_NAME="BYKSeriBaskiPro.app"
 DISPLAY_NAME="BYK Seri Baskı Pro"
 SUPPORT_DIR="BYKSeriBaskiPro"
+# Dağıtım zip'inde .app bu betiğin yanındadır; depoda proje kökündeki dist/ altında
 SRC=""
-if [[ -d "dist/$APP_NAME" ]]; then
-  SRC="dist/$APP_NAME"
-elif [[ -d "$APP_NAME" ]]; then
-  SRC="$APP_NAME"
-fi
+for candidate in "$APP_NAME" "dist/$APP_NAME" "../../dist/$APP_NAME"; do
+  if [[ -d "$candidate" ]]; then
+    SRC="$candidate"
+    break
+  fi
+done
 
 if [[ -z "$SRC" ]]; then
   echo "Uygulama bulunamadı."
-  echo "Önce BUILD_APP.command (veya ./BUILD_APP.sh) çalıştırın."
+  echo "Önce scripts/macos/BUILD_APP.command çalıştırın."
   exit 1
 fi
 

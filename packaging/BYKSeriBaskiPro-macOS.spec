@@ -1,5 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
-# macOS .app — Yalnızca macOS'ta: ./BUILD_APP.sh
+# macOS .app — Yalnızca macOS'ta: scripts/macos/BUILD_APP.sh
+
+# Spec packaging/ altında; yollar proje köküne göre, modüller src/ içinde
+import os
+import sys
+
+ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
+SRC = os.path.join(ROOT, "src")
+for _p in (SRC, SPECPATH):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+
+def R(*parts):
+    return os.path.join(ROOT, *parts)
+
 
 from pathlib import Path
 
@@ -11,18 +26,18 @@ block_cipher = None
 
 fa_datas, fa_binaries, fa_hiddenimports = collect_all("ctkfontawesome")
 
-icon_path = "assets/app.icns" if Path("assets/app.icns").exists() else None
-_ver = (Path("VERSION").read_text(encoding="utf-8").strip() or "1.1.1")
+icon_path = R("assets", "app.icns") if Path(R("assets", "app.icns")).exists() else None
+_ver = (Path(R("VERSION")).read_text(encoding="utf-8").strip() or "1.1.1")
 
 a = Analysis(
-    ["app.py"],
-    pathex=[],
+    [R("app.py")],
+    pathex=[SRC],
     binaries=fa_binaries,
     datas=[
-        ("assets", "assets"),
-        ("config.json", "."),
-        ("Barkod.xlsx", "."),
-        ("VERSION", "."),
+        (R("assets"), "assets"),
+        (R("resources", "config.json"), "."),
+        (R("resources", "Barkod.xlsx"), "."),
+        (R("VERSION"), "."),
         *fa_datas,
     ],
     hiddenimports=[
@@ -44,6 +59,9 @@ a = Analysis(
         "update_dialog",
         "layout_dialog",
         "text_render",
+        "main_window",
+        "label_entry_dialog",
+        "printer_compat",
         *fa_hiddenimports,
     ],
     hookspath=[],

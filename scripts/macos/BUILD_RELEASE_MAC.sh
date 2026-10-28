@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # macOS dağıtım paketi (BUILD_RELEASE.bat eşdeğeri)
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/../.."  # scripts/macos → proje kökü
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "Hata: Bu script yalnızca macOS'ta çalışır."
@@ -13,15 +13,16 @@ echo "========================================"
 echo " BIYIK.DEV — BYK Seri Baskı Pro v$VER"
 echo "========================================"
 
-./BUILD_APP.sh
+scripts/macos/BUILD_APP.sh
 
 OUT="release/BYKSeriBaskiPro_v${VER}_macOS"
 rm -rf release 2>/dev/null || true
 mkdir -p "$OUT"
 
 cp -R "dist/BYKSeriBaskiPro.app" "$OUT/"
-cp DAGITIM.txt "$OUT/OKU_BENI.txt"
-cp KURULUM.sh KALDIR.sh KURULUM.command KALDIR.command "$OUT/"
+cp docs/DAGITIM.txt "$OUT/OKU_BENI.txt"
+cp scripts/macos/KURULUM.sh scripts/macos/KALDIR.sh \
+   scripts/macos/KURULUM.command scripts/macos/KALDIR.command "$OUT/"
 chmod +x "$OUT/KURULUM.sh" "$OUT/KALDIR.sh" \
          "$OUT/KURULUM.command" "$OUT/KALDIR.command"
 echo "$VER" > "$OUT/VERSION.txt"

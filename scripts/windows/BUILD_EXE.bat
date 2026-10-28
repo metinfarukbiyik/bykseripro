@@ -1,13 +1,13 @@
 @echo off
 chcp 65001 >nul
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 
 echo ========================================
 echo  Biyik.dev - Exe derleme (gelistirme)
 echo  BYK Seri Baskı Pro
 echo ========================================
 echo.
-echo Dagitim / tek tik kurulum icin BUILD_RELEASE.bat kullanin.
+echo Dagitim / tek tik kurulum icin scripts\windows\BUILD_RELEASE.bat kullanin.
 echo.
 
 python -m pip install -r requirements.txt pyinstaller -q
@@ -24,7 +24,7 @@ if errorlevel 1 (
 )
 
 echo PyInstaller calisiyor...
-python -m PyInstaller --noconfirm BYKSeriBaskiPro.spec
+python -m PyInstaller --noconfirm packaging\BYKSeriBaskiPro.spec
 if errorlevel 1 (
   echo Derleme basarisiz.
   pause
@@ -33,7 +33,7 @@ if errorlevel 1 (
 
 echo.
 echo Cikti: dist\BYKSeriBaskiPro\
-echo Yerel kurulum: KURULUM.bat
-echo Paylasim paketi: BUILD_RELEASE.bat
+echo Yerel kurulum: scripts\windows\KURULUM.bat
+echo Paylasim paketi: scripts\windows\BUILD_RELEASE.bat
 echo.
 pause

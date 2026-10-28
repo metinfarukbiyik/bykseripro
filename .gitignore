@@ -13,3 +13,6 @@ assets/app.icns
 
 .DS_Store
 **/.DS_Store
+
+# Kaynaktan çalışırken kişisel ayarlar / Excel (paths.app_home)
+local/

@@ -7,6 +7,11 @@ import sys
 from pathlib import Path
 
 
+# Kaynaktan çalışırken: src/ ve proje kökü
+SRC_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SRC_DIR.parent
+
+
 def is_frozen() -> bool:
     return bool(getattr(sys, "frozen", False))
 
@@ -31,7 +36,14 @@ def resource_dir() -> Path:
         if resources.is_dir():
             return resources
 
-    return Path(__file__).resolve().parent
+    return PROJECT_ROOT
+
+
+def defaults_dir() -> Path:
+    """Varsayılan config.json / örnek Barkod.xlsx (paket içinde kök, kaynakta resources/)."""
+    if is_frozen():
+        return resource_dir()
+    return PROJECT_ROOT / "resources"
 
 
 def app_home() -> Path:
@@ -55,7 +67,10 @@ def app_home() -> Path:
         # Linux AppImage / frozen
         return Path(sys.executable).resolve().parent
 
-    return Path(__file__).resolve().parent
+    # Kaynaktan çalışırken kişisel ayarlar git dışı local/ klasöründe
+    home = PROJECT_ROOT / "local"
+    home.mkdir(parents=True, exist_ok=True)
+    return home
 
 
 def assets_dir() -> Path:

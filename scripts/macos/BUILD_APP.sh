@@ -2,7 +2,7 @@
 # macOS .app derleme (BUILD_EXE.bat eşdeğeri)
 # NOT: Bu script yalnızca macOS'ta çalışır.
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/../.."  # scripts/macos → proje kökü
 
 echo "========================================"
 echo " BIYIK.DEV — BYK Seri Baskı Pro (.app)"
@@ -10,7 +10,7 @@ echo "========================================"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "Hata: Bu script yalnızca macOS'ta çalışır."
-  echo "Windows için BUILD_EXE.bat / BUILD_RELEASE.bat kullanın."
+  echo "Windows için scripts\\windows\\BUILD_EXE.bat / BUILD_RELEASE.bat kullanın."
   exit 1
 fi
 
@@ -27,7 +27,7 @@ else
 fi
 
 echo "[2/3] PyInstaller (macOS .app)..."
-"$PYTHON" -m PyInstaller --noconfirm BYKSeriBaskiPro-macOS.spec
+"$PYTHON" -m PyInstaller --noconfirm packaging/BYKSeriBaskiPro-macOS.spec
 
 APP="dist/BYKSeriBaskiPro.app"
 if [[ ! -d "$APP" ]]; then
@@ -44,6 +44,6 @@ fi
 
 echo
 echo "Tamam: $APP"
-echo "Kurulum: KURULUM.command  (veya ./KURULUM.sh)"
-echo "Dağıtım: BUILD_RELEASE_MAC.command  (veya ./BUILD_RELEASE_MAC.sh)"
+echo "Kurulum: scripts/macos/KURULUM.command"
+echo "Dağıtım: scripts/macos/BUILD_RELEASE_MAC.command"
 echo

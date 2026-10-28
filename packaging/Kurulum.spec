@@ -1,6 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
 # Tek dosya Kurulum.exe — gömülü payload.zip ile
 
+# Spec packaging/ altında; yollar proje köküne göre, modüller src/ içinde
+import os
+import sys
+
+ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
+SRC = os.path.join(ROOT, "src")
+for _p in (SRC, SPECPATH):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+
+def R(*parts):
+    return os.path.join(ROOT, *parts)
+
+
 from branding import SETUP_EXE_NAME
 from win_version_info import SETUP_VERSION_INFO
 
@@ -10,15 +25,15 @@ block_cipher = None
 _setup_name = SETUP_EXE_NAME.removesuffix(".exe")
 
 a = Analysis(
-    ["setup_wizard.py"],
-    pathex=[],
+    [R("src", "setup_wizard.py")],
+    pathex=[SRC],
     binaries=[],
     datas=[
-        ("payload.zip", "."),
-        ("VERSION", "."),
-        ("assets/app.ico", "assets"),
-        ("assets/app.png", "assets"),
-        ("assets/biyik_badge.png", "assets"),
+        (R("payload.zip"), "."),
+        (R("VERSION"), "."),
+        (R("assets", "app.ico"), "assets"),
+        (R("assets", "app.png"), "assets"),
+        (R("assets", "biyik_badge.png"), "assets"),
     ],
     hiddenimports=[
         "app_icon",
@@ -62,6 +77,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon="assets\\app.ico",
+    icon=R("assets", "app.ico"),
     version=SETUP_VERSION_INFO,
 )

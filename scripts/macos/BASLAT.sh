@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # BYK Seri Baskı Pro — macOS / Linux başlatıcı (BASLAT.bat eşdeğeri)
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/../.."  # scripts/macos → proje kökü
 
 echo "BYK Seri Baskı Pro — Biyik.dev"
 echo "Bağımlılıklar kontrol ediliyor..."

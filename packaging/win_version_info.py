@@ -30,7 +30,7 @@ from branding import (
     SETUP_EXE_NAME,
 )
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # packaging/ → proje kökü
 COMPANY = PUBLISHER
 COPYRIGHT = f"© {PUBLISHER}"
 PRODUCT = APP_DISPLAY

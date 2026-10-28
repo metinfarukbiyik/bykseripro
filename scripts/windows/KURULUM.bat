@@ -21,13 +21,17 @@ if exist "%~dp0dist\BYKSeriBaskiPro\BYKSeriBaskiPro.exe" (
 if exist "%~dp0BYKSeriBaskiPro\BYKSeriBaskiPro.exe" (
   set "SRC=%~dp0BYKSeriBaskiPro"
 )
+rem Depoda: scripts\windows -> proje kokundeki dist\
+if "%SRC%"=="" if exist "%~dp0..\..\dist\BYKSeriBaskiPro\BYKSeriBaskiPro.exe" (
+  set "SRC=%~dp0..\..\dist\BYKSeriBaskiPro"
+)
 
 if "%SRC%"=="" (
   echo Kurulum kaynagi bulunamadi.
   echo.
   echo Secenekler:
-  echo  - BUILD_RELEASE.bat ile Kurulum.exe uretin
-  echo  - veya once BUILD_EXE.bat calistirin
+  echo  - scripts\windows\BUILD_RELEASE.bat ile Kurulum.exe uretin
+  echo  - veya once scripts\windows\BUILD_EXE.bat calistirin
   pause
   exit /b 1
 )

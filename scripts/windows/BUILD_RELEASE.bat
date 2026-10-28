@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 setlocal EnableExtensions
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 
 echo ========================================
 echo  BIYIK.DEV - Surum / Kurulum paketi
@@ -29,7 +29,7 @@ if errorlevel 1 (
 )
 
 echo [2/5] Uygulama derleniyor (PyInstaller)...
-python -m PyInstaller --noconfirm BYKSeriBaskiPro.spec
+python -m PyInstaller --noconfirm packaging\BYKSeriBaskiPro.spec
 if errorlevel 1 (
   echo Uygulama derlemesi basarisiz.
   pause
@@ -53,7 +53,7 @@ if not exist payload.zip (
 )
 
 echo [4/5] Kurulum.exe derleniyor...
-python -m PyInstaller --noconfirm Kurulum.spec
+python -m PyInstaller --noconfirm packaging\Kurulum.spec
 if errorlevel 1 (
   echo Kurulum.exe derlemesi basarisiz.
   pause
@@ -67,7 +67,7 @@ mkdir "release" 2>nul
 mkdir "%OUT%" 2>nul
 
 copy /Y "dist\BYKSeriBaskiPro_Kurulum.exe" "%OUT%\BYKSeriBaskiPro_Kurulum.exe" >nul
-copy /Y "DAGITIM.txt" "%OUT%\OKU_BENI.txt" >nul
+copy /Y "docs\DAGITIM.txt" "%OUT%\OKU_BENI.txt" >nul
 copy /Y "VERSION" "%OUT%\VERSION.txt" >nul
 
 powershell -NoProfile -Command ^
