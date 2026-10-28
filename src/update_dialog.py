@@ -16,8 +16,10 @@ from updater import (
     current_version,
     install_update,
     release_highlights,
+    mac_install_target,
     self_update_blocker,
 )
+from paths import is_macos
 
 C_BG = "#FFFFFF"
 C_SOFT = "#F5F7FA"
@@ -27,6 +29,16 @@ C_PRIMARY = "#1B3352"
 C_PRIMARY_HOVER = "#27466E"
 C_NOTICE_BG = "#FFF8E6"
 C_NOTICE_FG = "#6B5414"
+
+
+def _admin_note() -> str:
+    """macOS'ta uygulama klasörüne yazma izni yoksa parola sorulacağını önceden söyle."""
+    if not is_macos():
+        return ""
+    resolved = mac_install_target()
+    if resolved and resolved[1]:
+        return " Kurulum için Mac yönetici parolanız istenecek."
+    return ""
 
 
 class _Button(tk.Label):
@@ -193,7 +205,7 @@ class UpdateDialog(tk.Toplevel):
             tk.Label(
                 safe,
                 text="Program kapanıp yeni sürümle yeniden açılır. Ayarlarınız ve "
-                "Excel dosyalarınız korunur.",
+                "Excel dosyalarınız korunur." + _admin_note(),
                 font=("Segoe UI", 9), fg=C_MUTED, bg=C_BG, wraplength=440,
                 justify="left",
             ).pack(side="left", anchor="w")

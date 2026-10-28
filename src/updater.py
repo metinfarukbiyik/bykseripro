@@ -125,9 +125,34 @@ def release_highlights(notes: str, limit: int = 12) -> list[str]:
     return items[:limit]
 
 
+def _fetch_latest_via_redirect(timeout: float) -> ReleaseInfo:
+    """
+    API yanıt vermezse (saatlik 60 istek sınırı, ağ engeli): github.com/…/releases/latest
+    adresi son sürümün etiket sayfasına yönlenir; sürüm adresten okunur. Sınırı yoktur.
+    """
+    req = urllib.request.Request(RELEASES_PAGE, headers={"User-Agent": f"{APP_SHORT}-updater"})
+    with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
+        final = resp.geturl()
+    match = re.search(r"/releases/tag/([^/?#]+)", final)
+    if not match:
+        raise RuntimeError("Son sürüm bilgisi alınamadı.")
+    tag = urllib.request.unquote(match.group(1))
+    wanted = _platform_asset()
+    return ReleaseInfo(
+        version=tag.lstrip("vV"),
+        tag=tag,
+        notes="",
+        page_url=final,
+        asset_url=f"{DOWNLOAD_BASE}/{wanted}" if wanted else "",
+    )
+
+
 def fetch_latest(timeout: float = 8.0) -> ReleaseInfo:
-    with _open(API_LATEST, timeout) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
+    try:
+        with _open(API_LATEST, timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return _fetch_latest_via_redirect(timeout)
     tag = str(data.get("tag_name") or "")
     version = tag.lstrip("vV") or str(data.get("name") or "")
     wanted = _platform_asset()
@@ -168,6 +193,61 @@ def _mac_bundle_path() -> Path | None:
     return None
 
 
+def _mac_original_path(bundle: Path) -> Path | None:
+    """
+    macOS, internetten indirilip taşınmamış uygulamayı salt okunur geçici bir
+    konumdan çalıştırır (App Translocation). Asıl konumu Security.framework verir.
+    """
+    if "AppTranslocation" not in str(bundle):
+        return bundle
+    try:
+        import ctypes
+
+        cf = ctypes.cdll.LoadLibrary(
+            "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation"
+        )
+        sec = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/Security.framework/Security")
+        cf.CFURLCreateFromFileSystemRepresentation.restype = ctypes.c_void_p
+        cf.CFURLCreateFromFileSystemRepresentation.argtypes = [
+            ctypes.c_void_p, ctypes.c_char_p, ctypes.c_long, ctypes.c_bool,
+        ]
+        cf.CFURLGetFileSystemRepresentation.restype = ctypes.c_bool
+        cf.CFURLGetFileSystemRepresentation.argtypes = [
+            ctypes.c_void_p, ctypes.c_bool, ctypes.c_char_p, ctypes.c_long,
+        ]
+        cf.CFRelease.argtypes = [ctypes.c_void_p]
+        sec.SecTranslocateCreateOriginalPathForURL.restype = ctypes.c_void_p
+        sec.SecTranslocateCreateOriginalPathForURL.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+
+        raw = str(bundle).encode("utf-8")
+        url = cf.CFURLCreateFromFileSystemRepresentation(None, raw, len(raw), True)
+        if not url:
+            return None
+        original = sec.SecTranslocateCreateOriginalPathForURL(url, None)
+        cf.CFRelease(url)
+        if not original:
+            return None
+        buf = ctypes.create_string_buffer(4096)
+        ok = cf.CFURLGetFileSystemRepresentation(original, True, buf, len(buf))
+        cf.CFRelease(original)
+        return Path(buf.value.decode("utf-8")) if ok and buf.value else None
+    except Exception:
+        return None
+
+
+def mac_install_target() -> tuple[Path, bool] | None:
+    """Güncellemenin kurulacağı .app yolu ve yönetici izni gerekip gerekmediği."""
+    bundle = _mac_bundle_path()
+    if bundle is None:
+        return None
+    target = _mac_original_path(bundle) or Path("/Applications") / bundle.name
+    parent = target.parent
+    writable = os.access(parent, os.W_OK) and (
+        not target.exists() or os.access(target, os.W_OK)
+    )
+    return target, not writable
+
+
 def self_update_blocker() -> str:
     """Yerinde güncelleme yapılamıyorsa nedeni (boş = yapılabilir)."""
     if not is_frozen():
@@ -175,17 +255,9 @@ def self_update_blocker() -> str:
     if is_windows():
         return ""
     if is_macos():
-        bundle = _mac_bundle_path()
-        if bundle is None:
-            return ".app paketi bulunamadı."
-        if "AppTranslocation" in str(bundle):
-            return (
-                "Uygulama İndirilenler’den geçici konumda çalışıyor. "
-                "Uygulamayı Uygulamalar klasörüne taşıyıp yeniden açın."
-            )
-        if not os.access(bundle.parent, os.W_OK):
-            return f"{bundle.parent} klasörüne yazma izni yok."
-        return ""
+        # Geçici konum (App Translocation) ve yazma izni artık engel değil:
+        # asıl konum bulunur, gerekirse yönetici parolası istenir
+        return "" if _mac_bundle_path() is not None else ".app paketi bulunamadı."
     return "Bu platformda otomatik güncelleme yok."
 
 
@@ -249,8 +321,10 @@ def _launch_windows(work: Path, archive: Path) -> None:
 
 
 def _launch_macos(work: Path, archive: Path) -> None:
-    bundle = _mac_bundle_path()
-    assert bundle is not None
+    resolved = mac_install_target()
+    assert resolved is not None
+    target, needs_admin = resolved
+    bundle = target
     extract = work / "pkg"
     extract.mkdir()
     # ditto: sembolik bağları ve çalıştırma izinlerini korur (zipfile korumaz)
@@ -260,20 +334,59 @@ def _launch_macos(work: Path, archive: Path) -> None:
         raise RuntimeError(f"Pakette {bundle.name} bulunamadı.")
     new_app = min(apps, key=lambda p: len(p.parts))
 
+    log_dir = Path.home() / "Library" / "Logs" / APP_SHORT
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log = log_dir / "update.log"
+
+    # Değiştirme adımı (gerekirse yönetici yetkisiyle çalışır)
+    replace = work / "replace.sh"
+    replace.write_text(
+        f"""#!/bin/bash
+TARGET={_sh(target)}
+BACKUP={_sh(target.with_name(target.name + ".old"))}
+NEW={_sh(new_app)}
+mkdir -p "$(dirname "$TARGET")"
+rm -rf "$BACKUP"
+if [ -d "$TARGET" ]; then mv "$TARGET" "$BACKUP" || exit 1; fi
+if ditto "$NEW" "$TARGET"; then
+  rm -rf "$BACKUP"
+else
+  rm -rf "$TARGET"
+  [ -d "$BACKUP" ] && mv "$BACKUP" "$TARGET"
+  exit 1
+fi
+# Karantina kalkar → bir dahaki açılışta geçici konuma (translocation) düşmez
+xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null
+exit 0
+""",
+        encoding="utf-8",
+    )
+    if needs_admin:
+        run_replace = (
+            "osascript -e "
+            + _sh_str(
+                f'do shell script "/bin/bash " & quoted form of "{replace}" '
+                f'with prompt "BYK Seri Baskı Pro güncellemesini kurmak için parolanızı girin." '
+                "with administrator privileges"
+            )
+        )
+    else:
+        run_replace = f"/bin/bash {_sh(replace)}"
+
     script = work / "update.sh"
     script.write_text(
         f"""#!/bin/bash
+exec >>{_sh(log)} 2>&1
+echo "== $(date) güncelleme: {target} (yönetici: {'evet' if needs_admin else 'hayır'})"
 while kill -0 {os.getpid()} 2>/dev/null; do sleep 0.5; done
-TARGET={_sh(bundle)}
-BACKUP={_sh(bundle.with_name(bundle.name + ".old"))}
-rm -rf "$BACKUP"
-if mv "$TARGET" "$BACKUP" && ditto {_sh(new_app)} "$TARGET"; then
-  rm -rf "$BACKUP"
+if {run_replace}; then
+  echo "kuruldu"
 else
-  rm -rf "$TARGET"; mv "$BACKUP" "$TARGET"
+  echo "HATA: kurulamadı (kod $?)"
+  osascript -e 'display alert "Güncelleme kurulamadı" message "Yeni sürümü biyik.dev/byk-seri-baski-pro sayfasından indirebilirsiniz. Ayrıntı: ~/Library/Logs/{APP_SHORT}/update.log"' >/dev/null 2>&1
 fi
-xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null
-open "$TARGET"
+open {_sh(target)}
+sleep 5
 rm -rf {_sh(work)}
 """,
         encoding="utf-8",
@@ -281,10 +394,16 @@ rm -rf {_sh(work)}
     subprocess.Popen(
         ["/bin/bash", str(script)],
         start_new_session=True,
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
 
 
 def _sh(path: Path) -> str:
-    return "'" + str(path).replace("'", "'\\''") + "'"
+    return _sh_str(str(path))
+
+
+def _sh_str(text: str) -> str:
+    """Kabuk için tek tırnaklı güvenli metin."""
+    return "'" + text.replace("'", "'\\''") + "'"
