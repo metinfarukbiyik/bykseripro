@@ -32,3 +32,7 @@ UPDATE_ASSET_MACOS = f"{APP_SHORT}_macOS.zip"
 
 # Her etiketin üstüne basılan program imzası (kapatılamaz)
 LABEL_CREDIT = f"{APP_DISPLAY} · biyik.dev"
+
+# Ürün / indirme sayfası (Mac + Windows sürümleri)
+PRODUCT_PAGE = "https://biyik.dev/seri-baski-pro"
+PRODUCT_PAGE_LABEL = "biyik.dev/seri-baski-pro"

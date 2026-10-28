@@ -31,6 +31,9 @@ from help_dialog import open_help
 from label_preview import render_label_photoimage
 from layout_dialog import LayoutDialog
 from paths import app_home, assets_dir, resource_dir
+from printer_compat import OK as PRINTER_OK
+from printer_compat import WARN as PRINTER_WARN
+from printer_compat import check_printer, pick_label_printer
 from printer_raw import default_printer, list_printers, send_raw
 from serial_dialog import open_serial_dialog
 from splash import show_splash
@@ -57,6 +60,7 @@ from ui_icons import (
     C_TEAL,
     C_WARN,
     IconStore,
+    app_mark,
     icon_button,
     icon_labelframe,
 )
@@ -152,7 +156,7 @@ def settings_from_config(cfg: dict, **overrides) -> LabelSettings:
         width_mm=float(overrides.get("width_mm", cfg.get("label_width_mm", 98))),
         height_mm=float(overrides.get("height_mm", cfg.get("label_height_mm", 98))),
         gap_mm=float(overrides.get("gap_mm", cfg.get("gap_mm", 3))),
-        dpi=int(cfg.get("dpi", 203)),
+        dpi=int(overrides.get("dpi", cfg.get("dpi", 203))),
         copies=int(overrides.get("copies", cfg.get("copies", 1))),
         density=int(overrides.get("density", cfg.get("density", 8))),
         speed=int(cfg.get("speed", 4)),
@@ -213,6 +217,16 @@ def settings_from_config(cfg: dict, **overrides) -> LabelSettings:
     )
 
 
+def _valid_dpi(raw: str) -> int:
+    try:
+        dpi = int(float(str(raw).strip() or 203))
+    except ValueError:
+        dpi = 0
+    if not 100 <= dpi <= 1200:
+        raise ValueError("DPI 100–1200 arası olmalı (genelde 203 veya 300).")
+    return dpi
+
+
 def _num(var: tk.Variable) -> float:
     return float(str(var.get()).replace(",", ".").strip() or 0)
 
@@ -255,6 +269,8 @@ class LabelApp(tk.Tk):
         self.gap_var = tk.StringVar(value=str(self.cfg.get("gap_mm", 3)))
         self.copies_var = tk.StringVar(value=str(self.cfg.get("copies", 1)))
         self.density_var = tk.StringVar(value=str(self.cfg.get("density", 8)))
+        self.dpi_var = tk.StringVar(value=str(self.cfg.get("dpi", 203)))
+        self.printer_hint_var = tk.StringVar()
         self.bc_height_var = tk.StringVar(
             value=str(self.cfg.get("barcode_height_mm", 20))
         )
@@ -386,15 +402,11 @@ class LabelApp(tk.Tk):
         titles.pack(side="left")
         title_row = tk.Frame(titles, bg="#FFFFFF")
         title_row.pack(anchor="w")
-        barcode_ic = self._icons.get("barcode", size=16, fill=C_NAVY)
-        if barcode_ic is not None:
-            tk.Label(title_row, image=barcode_ic, bg="#FFFFFF").pack(
-                side="left", padx=(0, 6)
-            )
+        app_mark(title_row, size=30).pack(side="left", padx=(0, 10))
         tk.Label(
             title_row,
             text=APP_DISPLAY,
-            font=("Segoe UI Semibold", 12),
+            font=("Segoe UI Semibold", 15),
             fg="#1B3352",
             bg="#FFFFFF",
         ).pack(side="left")
@@ -520,9 +532,12 @@ class LabelApp(tk.Tk):
             top, textvariable=self.printer_var, width=67, state="readonly"
         )
         self.printer_combo.grid(row=1, column=1, sticky="ew", **pad)
+        self.printer_combo.bind("<<ComboboxSelected>>", lambda _e: self._check_printer())
         icon_button(
             top, "Yenile", "arrows-rotate", self._load_printers, self._icons
         ).grid(row=1, column=2, **pad)
+        self.printer_hint = ttk.Label(top, textvariable=self.printer_hint_var)
+        self.printer_hint.grid(row=2, column=1, columnspan=4, sticky="w", padx=8)
         top.columnconfigure(1, weight=1)
 
         settings = icon_labelframe(
@@ -543,6 +558,14 @@ class LabelApp(tk.Tk):
             entry = ttk.Entry(settings, textvariable=var, width=7)
             entry.grid(row=0, column=col * 2 + 1, sticky="w", **pad)
             var.trace_add("write", lambda *_: self._refresh_preview())
+
+        # DPI: yazıcının çözünürlüğü (etiket altında / kutusunda yazar)
+        ttk.Label(settings, text="DPI").grid(row=0, column=10, sticky="e", **pad)
+        dpi_combo = ttk.Combobox(
+            settings, textvariable=self.dpi_var, values=("203", "300", "600"), width=5
+        )
+        dpi_combo.grid(row=0, column=11, sticky="w", **pad)
+        self.dpi_var.trace_add("write", lambda *_: self._refresh_preview())
 
         ttk.Label(settings, text="Ana barkod yük. (mm)").grid(
             row=1, column=0, sticky="e", **pad
@@ -866,11 +889,24 @@ class LabelApp(tk.Tk):
         if saved and saved in printers:
             self.printer_var.set(saved)
         elif printers:
-            try:
-                d = default_printer()
-                self.printer_var.set(d if d in printers else printers[0])
-            except Exception:
-                self.printer_var.set(printers[0])
+            # Önce etiket yazıcısı gibi görünen; yoksa sistem varsayılanı
+            choice = pick_label_printer(printers)
+            if not choice:
+                try:
+                    d = default_printer()
+                    choice = d if d in printers else printers[0]
+                except Exception:
+                    choice = printers[0]
+            self.printer_var.set(choice)
+        self._check_printer()
+
+    def _check_printer(self) -> None:
+        """Seçili yazıcının TSPL uyumluluğunu göster."""
+        result = check_printer(self.printer_var.get())
+        color = {PRINTER_OK: C_GREEN, PRINTER_WARN: "#D93025"}.get(result.status, C_WARN)
+        mark = {PRINTER_OK: "✓", PRINTER_WARN: "⚠"}.get(result.status, "?")
+        self.printer_hint_var.set(f"{mark} {result.message}")
+        self.printer_hint.configure(foreground=color)
 
     def browse_excel(self) -> None:
         path = filedialog.askopenfilename(
@@ -979,6 +1015,7 @@ class LabelApp(tk.Tk):
                 gap_mm=float(self.gap_var.get().replace(",", ".")),
                 copies=max(1, int(self.copies_var.get())),
                 density=int(self.density_var.get()),
+                dpi=_valid_dpi(self.dpi_var.get()),
                 barcode_height_mm=float(self.bc_height_var.get().replace(",", ".")),
                 ak_barcode_height_mm=float(
                     self.ak_bc_height_var.get().replace(",", ".")
@@ -1011,7 +1048,9 @@ class LabelApp(tk.Tk):
                 text_mode=self.text_mode_var.get() or "graphic",
             )
         except (ValueError, tk.TclError) as exc:
-            raise ValueError("Boyut / font / kopya alanları sayı olmalı.") from exc
+            if "DPI" in str(exc):
+                raise
+            raise ValueError("Boyut / font / kopya / DPI alanları sayı olmalı.") from exc
 
     def persist_settings(self) -> None:
         try:
@@ -1027,6 +1066,7 @@ class LabelApp(tk.Tk):
                 "gap_mm": s.gap_mm,
                 "copies": s.copies,
                 "density": s.density,
+                "dpi": s.dpi,
                 "barcode_height_mm": s.barcode_height_mm,
                 "ak_barcode_height_mm": s.ak_barcode_height_mm,
                 "font_barkod": s.font_barkod,
@@ -1189,6 +1229,8 @@ class LabelApp(tk.Tk):
         if not printer:
             messagebox.showerror("Yazıcı", "Yazıcı seçin.")
             return
+        if not self._confirm_printer(printer):
+            return
         try:
             settings = self.settings_from_ui()
         except ValueError as exc:
@@ -1215,11 +1257,23 @@ class LabelApp(tk.Tk):
         self.status_var.set(f"{len(labels)} etiket gönderildi → {printer}")
         messagebox.showinfo("Baskı", f"{len(labels)} etiket yazıcıya gönderildi.")
 
+    def _confirm_printer(self, printer: str) -> bool:
+        result = check_printer(printer)
+        if result.status != PRINTER_WARN:
+            return True
+        return messagebox.askyesno(
+            "Yazıcı uyumluluğu",
+            f"“{printer}”\n\n{result.message}\n\nYine de gönderilsin mi?",
+            parent=self,
+        )
+
     def print_test(self) -> None:
         """Geliştirici örnek şablonu basar (font Orta; marka: BYK PROJECT)."""
         printer = self.printer_var.get().strip()
         if not printer:
             messagebox.showerror("Yazıcı", "Yazıcı seçin.")
+            return
+        if not self._confirm_printer(printer):
             return
         try:
             settings = self.settings_from_ui()

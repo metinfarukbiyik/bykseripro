@@ -321,14 +321,19 @@ def _qr_side_and_cell(
 # ── Metin blokları ───────────────────────────────────────────────────
 
 
-def _text_styles(level: int, mode: str) -> list[tuple[str, int, int, int]]:
+def _graphic_h(dots_at_203: int, dpi: int) -> int:
+    """Grafik metin yüksekliği — 300 DPI yazıcıda da aynı fiziksel boy."""
+    return max(8, int(round(dots_at_203 * dpi / 203)))
+
+
+def _text_styles(level: int, mode: str, dpi: int = 203) -> list[tuple[str, int, int, int]]:
     """Büyükten küçüğe aday stiller: (font, x_mul, y_mul, satır_yüksekliği)."""
     level = _clamp_font(level)
     styles: list[tuple[str, int, int, int]] = []
     if mode == "graphic":
         for lv in range(level, 0, -1):
-            styles.append(("G", 1, 1, GRAPHIC_LINE_HEIGHTS[lv]))
-        styles.append(("G", 1, 1, 16))
+            styles.append(("G", 1, 1, _graphic_h(GRAPHIC_LINE_HEIGHTS[lv], dpi)))
+        styles.append(("G", 1, 1, _graphic_h(16, dpi)))
         return styles
     for lv in range(level, 0, -1):
         font, xm, ym = FONT_SIZE_PRESETS[lv]
@@ -350,6 +355,7 @@ def _text_block(
     mode: str,
     max_lines: int,
     kind: str = "content",
+    dpi: int = 203,
 ) -> tuple[list[LayoutText], int]:
     """
     Metni max_w içine sığdırır: önce aynı fontta satırlara böler, olmazsa
@@ -357,7 +363,7 @@ def _text_block(
     Döner: (y'si bloğa göreli satırlar, blok yüksekliği). x sonra atanır.
     """
     max_lines = max(1, int(max_lines))
-    styles = _text_styles(level, mode)
+    styles = _text_styles(level, mode, dpi)
     chosen = None
     for font, xm, ym, lh in styles:
         measure = _measurer(mode, font, xm, lh)
@@ -400,10 +406,10 @@ def _text_block(
     return out, y
 
 
-def _credit_line(max_w: int, mode: str) -> tuple[list[LayoutText], int]:
+def _credit_line(max_w: int, mode: str, dpi: int) -> tuple[list[LayoutText], int]:
     """Program imzası — küçük, tek satır."""
     if mode == "graphic":
-        lh = 16
+        lh = _graphic_h(16, dpi)
         measure = _measurer(mode, "G", 1, lh)
         font = "G"
     else:
@@ -430,7 +436,8 @@ def _brand_block(
     pad_x = int(round(2.0 * dpm)) if style == "box" else 0
     thick = max(2, int(round(0.3 * dpm)))
     lines, text_h = _text_block(
-        text, max(40, max_w - 2 * pad_x - 2 * thick), level, mode, max_lines, kind="brand"
+        text, max(40, max_w - 2 * pad_x - 2 * thick), level, mode, max_lines,
+        kind="brand", dpi=int(round(dpm * 25.4)),
     )
     for t in lines:
         t.y += pad_y
@@ -498,6 +505,7 @@ def _barcode_column(
     gap_after_bc: int,
     mode: str,
     max_lines: int,
+    dpi: int = 203,
 ) -> _Column:
     col = _Column(barcodes=[], texts=[])
     if code_type == "QRCODE":
@@ -517,7 +525,7 @@ def _barcode_column(
     col.barcodes.append(bc)
     col.height = bc.height
     if show_text:
-        lines, block_h = _text_block(data, max_w, text_level, mode, max_lines)
+        lines, block_h = _text_block(data, max_w, text_level, mode, max_lines, dpi=dpi)
         for t in lines:
             t.y += col.height + gap_after_bc
         col.texts.extend(lines)
@@ -569,7 +577,7 @@ def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
     qr_cell_pref = int(getattr(s, "qr_cell", 4) or 0)
 
     # Program imzası (her zaman en üstte) + marka (kenara sabit, sığdırmadan etkilenmez)
-    credit_lines, credit_h = _credit_line(max_w, mode)
+    credit_lines, credit_h = _credit_line(max_w, mode, s.dpi)
     credit_block = credit_h + int(round(1.0 * dpm))
     brand_lines: list[LayoutText] = []
     brand_shapes: list[LayoutShape] = []
@@ -607,7 +615,7 @@ def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
         main_col = _barcode_column(
             barkod, main_type, bc_h, s.barcode_narrow, s.barcode_wide,
             qr_cell_pref, qr_ecc, col_w, lv(s.font_barkod), s.show_main_text,
-            gap_after_bc, mode, max_lines,
+            gap_after_bc, mode, max_lines, s.dpi,
         )
         ak_col = None
         if ak:
@@ -616,12 +624,15 @@ def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
                 max(2, s.barcode_narrow - 1), max(4, s.barcode_wide - 2),
                 max(1, qr_cell_pref - 1) if qr_cell_pref else 0, qr_ecc,
                 col_w, lv(s.font_ak), s.show_ak_text, gap_after_bc, mode, max_lines,
+                s.dpi,
             )
 
         extra: list[tuple[list[LayoutText], int]] = []
         for txt in (item, parca):
             if txt:
-                extra.append(_text_block(txt, max_w, lv(s.font_item), mode, max_lines))
+                extra.append(
+                    _text_block(txt, max_w, lv(s.font_item), mode, max_lines, dpi=s.dpi)
+                )
 
         if ak_col and side_by_side:
             top_h = max(main_col.height, ak_col.height)

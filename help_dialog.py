@@ -247,7 +247,7 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
     s1 = _section(body, "1. Program ne işe yarar?", icons, "circle-question")
     _p(
         s1,
-        "Excel’deki satırları okuyarak Xprinter (TSPL) yazıcıya seri barkod "
+        "Excel’deki satırları okuyarak TSPL uyumlu termal yazıcıya seri barkod "
         "etiketi basar. Tek tek kopyala-yapıştır yapmadan toplu ve seçmeli baskı alır.",
     )
     _p(s1, "Öne çıkan yetenekler", bold=True)
@@ -383,8 +383,9 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
         s4,
         "02",
         "Yazıcıyı seçin",
-        "Xprinter XP-490B (veya TSPL/RAW yazıcınız). Görünmüyorsa Yenile; "
-        "Windows veya macOS’ta yazıcı kurulu olmalıdır.",
+        "TSPL uyumlu termal etiket yazıcınızı seçin (Xprinter, TSC, Gprinter, "
+        "HPRT, iDPRT, Rongta…). Altındaki satır uyumluluğu gösterir. "
+        "DPI’yı yazıcınıza göre (203 / 300) seçin. Görünmüyorsa Yenile.",
     )
     _step(
         s4,
@@ -467,7 +468,9 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
     s7 = _section(body, "7. Sık karşılaşılan durumlar", icons, "triangle-exclamation")
     _bullet(s7, "Liste boş: A sütunu dolu mu veya Seri Üret ile satır oluşturdunuz mu?")
     _bullet(s7, "Başlıklar eski kaldı: Excel’i yeniden Yükle’ye basın.")
-    _bullet(s7, "Yazıcı yok: Windows Yazıcılar veya macOS Yazıcılar & Tarayıcılar’da XP-490B ekli olmalı.")
+    _bullet(s7, "Yazıcı yok: Windows Yazıcılar veya macOS Yazıcılar & Tarayıcılar’da etiket yazıcısı ekli olmalı.")
+    _bullet(s7, "Etiket çok küçük / büyük basılıyor: DPI yanlış; 300 DPI yazıcıda 300 seçin.")
+    _bullet(s7, "Anlamsız karakterler basılıyor: yazıcı TSPL desteklemiyor (ör. Zebra, Godex, Brother).")
     _bullet(s7, "macOS baskı hatası: yazıcıyı yeniden ekleyin; uygulama raw (TSPL) gönderir.")
     _bullet(s7, "QR okunmuyor: kenarı (yükseklik mm) büyütün; yoğunluğu artırın.")
     _bullet(s7, "EAN hata: verinin rakam olduğundan emin olun.")

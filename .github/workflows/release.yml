@@ -176,6 +176,44 @@ jobs:
     needs: [version, windows, macos]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # önceki tag'den bu yana commit'ler
+
+      - name: Sürüm notları (commit mesajlarından)
+        env:
+          VER: ${{ needs.version.outputs.ver }}
+        run: |
+          # Uygulamadaki güncelleme penceresi "## Yenilikler" altındaki maddeleri gösterir.
+          # Her commit mesajı bir madde olur; docs:/ci:/chore: ile başlayanlar atlanır.
+          PREV="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+          RANGE="${PREV:+${PREV}..}HEAD"
+          git log --no-merges --pretty='%s' "$RANGE" \
+            | grep -viE '^(docs|ci|chore|style|test)(\(.*\))?:' \
+            | sed -E 's/^(feat|fix|perf|refactor)(\(.*\))?: *//' \
+            | awk 'NF && !seen[$0]++ { print "- " $0 }' > notes.txt || true
+          [ -s notes.txt ] || echo "- Hata düzeltmeleri ve iyileştirmeler" > notes.txt
+          {
+            echo "## Yenilikler"
+            echo
+            cat notes.txt
+            echo
+            echo "## İndir"
+            echo
+            echo "Ürün sayfası: **https://biyik.dev/seri-baski-pro**"
+            echo
+            echo "| Platform | Bağlantı |"
+            echo "|---|---|"
+            echo "| **Windows** | https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip |"
+            echo "| **macOS** | https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/BYKSeriBaskiPro_macOS.zip |"
+            echo "| Windows taşınabilir | https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/BYKSeriBaskiPro_Portable.zip |"
+            echo
+            echo "Kurulu programlar bu sürümü açılışta otomatik bildirir."
+            echo
+            echo "Sürüm: ${VER}"
+          } > release_body.md
+          cat release_body.md
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -199,23 +237,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: BYK Seri Baskı Pro ${{ needs.version.outputs.ver }}
           make_latest: true
-          generate_release_notes: true
-          body: |
-            ## İndirme (yalnızca kurulum paketleri)
-
-            Kaynak kodu son kullanıcıyla paylaşmayın. Releases sayfasındaki
-            “Source code” linklerini siteye koymayın — yalnız aşağıdaki zip’ler.
-
-            | Platform | Kalıcı link |
-            |---|---|
-            | **Windows** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip |
-            | **macOS** | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_macOS.zip |
-            | Windows taşınabilir | https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Portable.zip |
-
-            Windows: zip’i aç → `BYKSeriBaskiPro_Kurulum.exe`  
-            macOS: zip’i aç → `BYKSeriBaskiPro.app` (ilk açılışta sağ tık → Aç)
-
-            Sürüm: ${{ needs.version.outputs.ver }}
+          body_path: release_body.md
           files: |
             dist-upload/BYKSeriBaskiPro_Kurulum.zip
             dist-upload/BYKSeriBaskiPro_macOS.zip

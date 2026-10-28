@@ -61,12 +61,22 @@ def _win_send_raw(printer_name: str, raw: bytes, job_name: str) -> None:
 
 def _cups_list_printers() -> list[str]:
     try:
+        # -e: yalnız hedef adları (dil bağımsız)
         result = subprocess.run(
-            ["lpstat", "-a"],
+            ["lpstat", "-e"],
             capture_output=True,
             text=True,
             check=False,
         )
+        if result.returncode != 0 or not (result.stdout or "").strip():
+            # Eski CUPS: "-a" çıktısı yerelleştirilir
+            # ("Ad accepting…" / Türkçe: "Ad, … tarihinden beri…")
+            result = subprocess.run(
+                ["lpstat", "-a"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
     except FileNotFoundError as exc:
         raise RuntimeError(
             "CUPS yazıcı sistemi bulunamadı (lpstat). "
@@ -78,8 +88,7 @@ def _cups_list_printers() -> list[str]:
         line = line.strip()
         if not line:
             continue
-        # "Printer_Name accepting requests since ..."
-        name = line.split()[0]
+        name = line.split()[0].rstrip(",:;")
         if name:
             names.append(name)
     return sorted(set(names), key=str.lower)
@@ -137,7 +146,7 @@ def _cups_send_raw(printer_name: str, raw: bytes, job_name: str) -> None:
                     "Yazıcıya gönderilemedi.\n"
                     f"Komut: lp -o raw → {err or 'hata'}\n"
                     f"Komut: lp → {err2 or 'hata'}\n\n"
-                    "macOS: Yazıcılar & Tarayıcılar’da Xprinter’ı ekleyin; "
+                    "macOS: Yazıcılar & Tarayıcılar’da etiket yazıcınızı ekleyin; "
                     "mümkünse ‘Generic’ / raw uyumlu sürücü kullanın."
                 )
     finally:
@@ -172,7 +181,7 @@ def default_printer() -> str:
 
 
 def send_raw(
-    printer_name: str, data: bytes | str, job_name: str = "XP490B Label"
+    printer_name: str, data: bytes | str, job_name: str = "BYK Label"
 ) -> None:
     """TSPL komutlarını yazıcıya RAW olarak gönderir."""
     if isinstance(data, str):
@@ -197,7 +206,7 @@ def platform_print_hint() -> str:
         return "Windows: yazıcı TSPL/RAW sürücü ile kurulu olmalı."
     if _is_macos():
         return (
-            "macOS: Yazıcılar & Tarayıcılar’dan Xprinter’ı ekleyin; "
+            "macOS: Yazıcılar & Tarayıcılar’dan etiket yazıcınızı ekleyin; "
             "baskı CUPS üzerinden raw gönderilir."
         )
     return "Linux: CUPS’ta yazıcı tanımlı olmalı (lpstat -a)."

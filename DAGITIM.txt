@@ -97,7 +97,7 @@ Veri (config / Excel):
 Kaldırma: KALDIR.command  (veya ./KALDIR.sh)
 
 Yazıcı (macOS):
-  Sistem Ayarları → Yazıcılar & Tarayıcılar → Xprinter ekleyin.
+  Sistem Ayarları → Yazıcılar & Tarayıcılar → etiket yazıcısını ekleyin.
   Uygulama baskıyı CUPS ile “raw” gönderir (TSPL).
 
 
@@ -128,7 +128,9 @@ KAYNAKTAN ÇALIŞTIRMA (her iki OS)
 Gereksinimler
 -------------
 • Windows 10/11 veya macOS 12+
-• Xprinter XP-490B (veya TSPL uyumlu termal yazıcı)
+• TSPL / TSPL2 uyumlu termal etiket yazıcısı (203 / 300 DPI)
+  (Xprinter, TSC, Gprinter, HPRT, iDPRT, Rongta, Munbyn …;
+   Zebra, Godex, Brother, DYMO desteklenmez)
 • İnternet gerekmez (kurulum sonrası)
 
 

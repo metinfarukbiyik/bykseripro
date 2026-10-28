@@ -13,7 +13,7 @@ Sürüm: **1.2.0**
 
 1. Excel dosyasındaki satırları okur  
 2. Etiketi ekranda **önizler**  
-3. **TSPL** komutlarıyla termal yazıcıya (ör. Xprinter XP-490B) gönderir  
+3. **TSPL** komutlarıyla termal etiket yazıcısına (Xprinter, TSC, Gprinter, HPRT …) gönderir  
 
 Python kurulumu gerekmez (hazır kurulum paketleriyle). İnternet bağlantısı kurulum sonrası zorunlu değildir.
 
@@ -73,7 +73,7 @@ Başlık adları biraz farklı olsa da program bilinen eş anlamlıları tanır 
 
 1. Programı aç  
 2. Excel dosyasını seç / yükle  
-3. Yazıcıyı seç (Xprinter veya TSPL uyumlu)  
+3. Yazıcıyı seç (TSPL uyumlu; altındaki satır uyumluluğu gösterir) ve DPI’yı ayarla  
 4. Önizlemeyi kontrol et  
 5. **Seçilileri Bas** veya **Tümünü Bas**  
 6. İstersen **Ayarları Kaydet**
@@ -87,7 +87,7 @@ Program içindeki **Kullanım** butonu da aynı kılavuzu gösterir.
 | | |
 |---|---|
 | İşletim sistemi | Windows 10/11 veya macOS 12+ |
-| Yazıcı | Xprinter XP-490B veya **TSPL** uyumlu termal etiket yazıcısı |
+| Yazıcı | **TSPL / TSPL2** uyumlu termal etiket yazıcısı (203 / 300 DPI) — Xprinter, TSC, Gprinter, HPRT, iDPRT, Rongta, Munbyn … Zebra (ZPL), Godex (EZPL), Brother, DYMO desteklenmez |
 | Excel | `.xlsx` (Microsoft Excel / uyumlu) |
 | Ağ | Kurulum sonrası gerekmez |
 
@@ -174,7 +174,7 @@ Program `config.json` ile kaydeder. Tipik alanlar:
 - Marka metni ve konumu (`top` / `bottom`)  
 - Excel sütun eşlemeleri  
 
-Varsayılan örnek etiket boyutu: **98 × 98 mm**, **203 DPI**, yazıcı: **Xprinter XP-490B**.
+Varsayılan örnek etiket boyutu: **98 × 98 mm**, **203 DPI**. Yazıcı kayıtlı değilse ilk TSPL uyumlu görünen yazıcı seçilir.
 
 ---
 

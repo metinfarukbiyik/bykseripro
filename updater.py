@@ -102,6 +102,26 @@ def _platform_asset() -> str:
     return ""
 
 
+def release_highlights(notes: str, limit: int = 12) -> list[str]:
+    """
+    Sürüm notundan kullanıcıya gösterilecek maddeler.
+    Kaynak: GitHub Release metni (CI commit mesajlarından "## Yenilikler" üretir).
+    Bu bölüm yoksa boş döner — indirme tabloları vb. kullanıcıya gösterilmez.
+    """
+    items: list[str] = []
+    in_section = False
+    for raw in (notes or "").splitlines():
+        line = raw.strip()
+        if line.startswith("#"):
+            in_section = line.lstrip("#").strip().lower() in {"yenilikler", "neler yeni"}
+            continue
+        if in_section and line[:2] in {"- ", "* "}:
+            text = line[2:].strip().replace("**", "")
+            if text:
+                items.append(text[0].upper() + text[1:])
+    return items[:limit]
+
+
 def fetch_latest(timeout: float = 8.0) -> ReleaseInfo:
     with _open(API_LATEST, timeout) as resp:
         data = json.loads(resp.read().decode("utf-8"))

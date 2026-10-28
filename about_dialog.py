@@ -10,6 +10,7 @@ from pathlib import Path
 
 from PIL import Image, ImageTk
 
+from branding import PRODUCT_PAGE, PRODUCT_PAGE_LABEL
 from paths import assets_dir
 from app_icon import apply_app_icon
 from ui_icons import C_NAVY as ICON_NAVY
@@ -232,6 +233,12 @@ def open_about(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
         CONTACT_PHONE_DISPLAY,
         lambda: webbrowser.open(f"tel:+{CONTACT_PHONE_E164}"),
         "phone",
+    )
+    _add_row(
+        "İndir",
+        PRODUCT_PAGE_LABEL,
+        lambda: webbrowser.open(PRODUCT_PAGE),
+        "globe",
     )
 
     # Soft WhatsApp butonu
