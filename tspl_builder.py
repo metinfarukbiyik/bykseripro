@@ -1,17 +1,28 @@
 """
-TSPL etiket üretici — 98×98 mm kare etiket.
+TSPL etiket üretici — her boyutta etiket (98×98, 100×40 …).
 
 Şablon (yatay ortalı):
   [opsiyonel marka üstte]
-  Ana barkod + metin
+  Ana barkod + metin          | 2. barkod yan yana da konabilir
   (A-K barkod + metin)
-  ItemNo / ParcaAd
+  ItemNo / ParcaAd            (uzun metin satırlara bölünür, her satır ortalı)
   [opsiyonel marka altta]
+
+Etikete sığmayan içerik "otomatik sığdır" ile boşluk / barkod yüksekliği /
+font küçültülerek yerleştirilir.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+from text_render import (
+    graphic_text_width,
+    render_text_image,
+    truncate_to_width,
+    tspl_bitmap_payload,
+    wrap_text,
+)
 
 FONT_SIZE_PRESETS: dict[int, tuple[str, int, int]] = {
     1: ("2", 1, 1),  # Küçük   ~12×20
@@ -31,6 +42,19 @@ BRAND_POSITIONS = {
     "top": "Üst",
     "bottom": "Alt",
 }
+
+AK_POSITIONS = {
+    "below": "Alt alta",
+    "side": "Yan yana",
+}
+
+TEXT_MODES = {
+    "graphic": "Grafik (Türkçe karakter, tam ortalı)",
+    "printer": "Yazıcı fontu",
+}
+
+# Grafik modda font seviyesi → satır yüksekliği (dot); yazıcı fontlarıyla eş boy
+GRAPHIC_LINE_HEIGHTS = {1: 20, 2: 24, 3: 32, 4: 48}
 
 # TSPL code type → arayüz etiketi
 BARCODE_TYPES: dict[str, str] = {
@@ -112,6 +136,18 @@ class LabelSettings:
     gap_after_text_mm: float = 2.5
     gap_between_barcodes_mm: float = 4.0
     margin_mm: float = 6.0
+    # Yerleşim (önizleme panelinden yönetilir)
+    show_main_text: bool = True
+    show_ak: bool = True
+    show_ak_text: bool = True
+    show_item: bool = True
+    show_parca: bool = True
+    ak_position: str = "below"  # below | side
+    auto_fit: bool = True
+    max_text_lines: int = 2  # uzun metin en fazla kaç satıra bölünsün
+    text_mode: str = "graphic"  # graphic | printer
+    offset_x_mm: float = 0.0  # yazıcı kalibrasyonu (+ sağa)
+    offset_y_mm: float = 0.0  # (+ aşağı)
 
     # Eski tek font alanı (geriye uyumluluk)
     @property
@@ -145,6 +181,7 @@ class LayoutText:
     width: int
     height: int
     kind: str = "content"  # content | brand
+    mode: str = "printer"  # printer (TEXT) | graphic (BITMAP)
 
 
 @dataclass
@@ -153,6 +190,9 @@ class LabelLayout:
     height: int
     barcodes: list[LayoutBarcode]
     texts: list[LayoutText]
+    overflow: bool = False
+    fit_note: str = ""
+    margin: int = 0
 
 
 def _escape(text: str) -> str:
@@ -206,21 +246,6 @@ def _approx_code128_width(data: str, narrow: int) -> int:
     return _code128_module_count(data) * max(1, narrow)
 
 
-def _fit_text_style(text: str, font_size: int, max_w: int) -> tuple[str, int, int, int]:
-    size = _clamp_font(font_size)
-    for level in range(size, 0, -1):
-        font, xm, ym = FONT_SIZE_PRESETS[level]
-        tw = _text_width(text, font, xm)
-        if tw <= max_w:
-            return font, xm, ym, tw
-    for level in range(size, 0, -1):
-        font, _, _ = FONT_SIZE_PRESETS[level]
-        tw = _text_width(text, font, 1)
-        if tw <= max_w:
-            return font, 1, 1, tw
-    return "1", 1, 1, _text_width(text, "1", 1)
-
-
 def _approx_linear_width(data: str, code_type: str, narrow: int) -> int:
     narrow = max(1, narrow)
     t = normalize_barcode_type(code_type)
@@ -267,270 +292,346 @@ def _qr_side_and_cell(
     return cell * modules, cell
 
 
-def _center_x(page_w: int, content_w: int) -> int:
-    """Sağ-sol tam ortalama."""
-    return max(0, (page_w - content_w) // 2)
 
 
-def _aligned_pair_x(page_w: int, bar_w: int, text_w: int) -> tuple[int, int]:
+# ── Metin blokları ───────────────────────────────────────────────────
+
+
+def _text_styles(level: int, mode: str) -> list[tuple[str, int, int, int]]:
+    """Büyükten küçüğe aday stiller: (font, x_mul, y_mul, satır_yüksekliği)."""
+    level = _clamp_font(level)
+    styles: list[tuple[str, int, int, int]] = []
+    if mode == "graphic":
+        for lv in range(level, 0, -1):
+            styles.append(("G", 1, 1, GRAPHIC_LINE_HEIGHTS[lv]))
+        styles.append(("G", 1, 1, 16))
+        return styles
+    for lv in range(level, 0, -1):
+        font, xm, ym = FONT_SIZE_PRESETS[lv]
+        styles.append((font, xm, ym, _text_height(font, ym)))
+    styles.append(("1", 1, 1, _text_height("1", 1)))
+    return styles
+
+
+def _measurer(mode: str, font: str, x_mul: int, line_h: int):
+    if mode == "graphic":
+        return lambda t: graphic_text_width(t, line_h)
+    return lambda t: _text_width(t, font, x_mul)
+
+
+def _text_block(
+    text: str,
+    max_w: int,
+    level: int,
+    mode: str,
+    max_lines: int,
+    kind: str = "content",
+) -> tuple[list[LayoutText], int]:
     """
-    Barkod ve altındaki metni ortak merkeze hizalar.
-    İkisi de sayfa ortasına göre yerleştirilir → birbirine ve kağıda ortalı.
+    Metni max_w içine sığdırır: önce aynı fontta satırlara böler, olmazsa
+    fontu küçültür; en küçük fontta da sığmazsa son satırı '...' ile kısaltır.
+    Döner: (y'si bloğa göreli satırlar, blok yüksekliği). x sonra atanır.
     """
-    center = page_w // 2
-    bc_x = max(0, center - bar_w // 2)
-    tx = max(0, center - text_w // 2)
-    return bc_x, tx
+    max_lines = max(1, int(max_lines))
+    styles = _text_styles(level, mode)
+    chosen = None
+    for font, xm, ym, lh in styles:
+        measure = _measurer(mode, font, xm, lh)
+        lines = wrap_text(text, max_w, measure, max_lines)
+        if lines is not None:
+            chosen = (font, xm, ym, lh, measure, lines)
+            break
+    if chosen is None:
+        font, xm, ym, lh = styles[-1]
+        measure = _measurer(mode, font, xm, lh)
+        lines = wrap_text(text, max_w, measure, 999) or [text]
+        if len(lines) > max_lines:
+            rest = " ".join(lines[max_lines - 1 :])
+            lines = lines[: max_lines - 1] + [rest]
+        lines[-1] = truncate_to_width(lines[-1], max_w, measure)
+        chosen = (font, xm, ym, lh, measure, lines)
+
+    font, xm, ym, lh, measure, lines = chosen
+    line_gap = max(2, lh // 6)
+    out: list[LayoutText] = []
+    y = 0
+    for i, line in enumerate(lines):
+        if i:
+            y += line_gap
+        out.append(
+            LayoutText(
+                text=line,
+                x=0,
+                y=y,
+                font=font,
+                x_mul=xm,
+                y_mul=ym,
+                width=measure(line),
+                height=lh,
+                kind=kind,
+                mode=mode,
+            )
+        )
+        y += lh
+    return out, y
 
 
-def _make_text(
-    text: str, y: int, page_w: int, max_w: int, font_size: int, kind: str = "content"
-) -> LayoutText:
-    font, xm, ym, tw = _fit_text_style(text, font_size, max_w)
-    th = _text_height(font, ym)
-    return LayoutText(
-        text=text,
-        x=_center_x(page_w, tw),
-        y=y,
-        font=font,
-        x_mul=xm,
-        y_mul=ym,
-        width=tw,
-        height=th,
-        kind=kind,
-    )
+# ── Yerleşim ─────────────────────────────────────────────────────────
+
+
+@dataclass
+class _Column:
+    """Dikey sıralı öğeler; y'ler sütun başına göreli, x sütun merkezine göre atanır."""
+
+    barcodes: list[LayoutBarcode]
+    texts: list[LayoutText]
+    height: int = 0
+    too_wide: bool = False
+
+    def place(self, center_x: int, y0: int, out_bc: list, out_tx: list) -> None:
+        for bc in self.barcodes:
+            bc.x = max(0, center_x - bc.width // 2)
+            bc.y += y0
+            out_bc.append(bc)
+        for t in self.texts:
+            t.x = max(0, center_x - t.width // 2)
+            t.y += y0
+            out_tx.append(t)
+
+
+def _barcode_column(
+    data: str,
+    code_type: str,
+    height: int,
+    narrow: int,
+    wide: int,
+    qr_cell: int,
+    qr_ecc: str,
+    max_w: int,
+    text_level: int,
+    show_text: bool,
+    gap_after_bc: int,
+    mode: str,
+    max_lines: int,
+) -> _Column:
+    col = _Column(barcodes=[], texts=[])
+    if code_type == "QRCODE":
+        # Yükseklik alanı QR kare kenarıdır
+        side, cell = _qr_side_and_cell(height, min(max_w, height), qr_cell)
+        bc = LayoutBarcode(
+            data=data, x=0, y=0, width=side, height=side, narrow=1, wide=2,
+            code_type=code_type, kind="qr", cell=cell, ecc=qr_ecc,
+        )
+    else:
+        n, wd, bw = _pick_narrow_wide(data, code_type, narrow, wide, max_w)
+        col.too_wide = bw > max_w
+        bc = LayoutBarcode(
+            data=data, x=0, y=0, width=bw, height=height, narrow=n, wide=wd,
+            code_type=code_type,
+        )
+    col.barcodes.append(bc)
+    col.height = bc.height
+    if show_text:
+        lines, block_h = _text_block(data, max_w, text_level, mode, max_lines)
+        for t in lines:
+            t.y += col.height + gap_after_bc
+        col.texts.extend(lines)
+        col.height += gap_after_bc + block_h
+    return col
+
+
+# Otomatik sığdırma adımları: (boşluk katsayısı, barkod yük. katsayısı, font düşüşü)
+_FIT_STEPS: tuple[tuple[float, float, int], ...] = (
+    (1.0, 1.0, 0),
+    (0.6, 1.0, 0),
+    (0.5, 0.85, 0),
+    (0.4, 0.7, 0),
+    (0.35, 0.55, 0),
+    (0.35, 0.55, 1),
+    (0.3, 0.45, 1),
+    (0.25, 0.4, 2),
+)
 
 
 def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
-    dpm = dots_per_mm(settings.dpi)
-    w = int(round(settings.width_mm * dpm))
-    h = int(round(settings.height_mm * dpm))
-    margin = int(round(settings.margin_mm * dpm))
+    s = settings
+    dpm = dots_per_mm(s.dpi)
+    w = int(round(s.width_mm * dpm))
+    h = int(round(s.height_mm * dpm))
+    margin = int(round(max(0.0, s.margin_mm) * dpm))
     max_w = max(40, w - 2 * margin)
+    mode = s.text_mode if s.text_mode in TEXT_MODES else "graphic"
+    max_lines = max(1, min(4, int(s.max_text_lines or 1)))
 
     barkod = _escape(str(label.barkod))
-    ak = _norm(label.ak_barkod)
-    item = _norm(label.item_no)
-    parca = _norm(label.parca_ad)
-    brand = _norm(settings.brand_text)
-    brand_pos = (settings.brand_position or "bottom").lower()
-    if brand_pos not in {"top", "bottom"}:
+    ak = _norm(label.ak_barkod) if s.show_ak else ""
+    item = _norm(label.item_no) if s.show_item else ""
+    parca = _norm(label.parca_ad) if s.show_parca else ""
+    brand = _norm(s.brand_text)
+    brand_pos = (s.brand_position or "bottom").lower()
+    if brand_pos not in BRAND_POSITIONS:
         brand_pos = "bottom"
+    side_by_side = bool(ak) and s.ak_position == "side"
 
-    gap_after_bc = int(round(settings.gap_after_barcode_mm * dpm))
-    gap_after_txt = int(round(settings.gap_after_text_mm * dpm))
-    gap_bc = int(round(settings.gap_between_barcodes_mm * dpm))
-    bc_h = int(round(settings.barcode_height_mm * dpm))
-    ak_h = int(round(settings.ak_barcode_height_mm * dpm))
-
-    main_type = normalize_barcode_type(settings.barcode_type)
+    main_type = normalize_barcode_type(s.barcode_type)
     ak_type = normalize_barcode_type(
-        getattr(settings, "ak_barcode_type", None) or settings.barcode_type
+        getattr(s, "ak_barcode_type", None) or s.barcode_type
     )
-    qr_ecc = (settings.qr_ecc or "M").upper()[:1]
+    qr_ecc = (s.qr_ecc or "M").upper()[:1]
     if qr_ecc not in {"L", "M", "Q", "H"}:
         qr_ecc = "M"
-    qr_cell_pref = int(getattr(settings, "qr_cell", 4) or 0)
+    qr_cell_pref = int(getattr(s, "qr_cell", 4) or 0)
 
-    font_barkod = _clamp_font(settings.font_barkod)
-    font_ak = _clamp_font(settings.font_ak)
-    font_item = _clamp_font(settings.font_item)
-    font_brand = _clamp_font(settings.font_brand)
-
-    main_n = main_w = 2
-    main_bw = bc_h
-    main_kind = "linear"
-    main_cell = 4
-    if main_type == "QRCODE":
-        main_kind = "qr"
-        main_bw, main_cell = _qr_side_and_cell(bc_h, max_w, qr_cell_pref)
-        bc_h = main_bw  # kare
-    else:
-        main_n, main_w, main_bw = _pick_narrow_wide(
-            barkod, main_type, settings.barcode_narrow, settings.barcode_wide, max_w
+    # Marka (sığdırmadan etkilenmez; kenara sabit)
+    brand_lines: list[LayoutText] = []
+    brand_h = 0
+    if brand:
+        brand_lines, brand_h = _text_block(
+            brand, max_w, s.font_brand, mode, max_lines, kind="brand"
         )
-    main_txt = _make_text(barkod, 0, w, max_w, font_barkod)
-
-    ak_n = ak_w = ak_bw = 0
-    ak_kind = "linear"
-    ak_cell = 4
-    ak_txt: LayoutText | None = None
-    if ak:
-        if ak_type == "QRCODE":
-            ak_kind = "qr"
-            ak_bw, ak_cell = _qr_side_and_cell(
-                ak_h, max_w, max(1, qr_cell_pref - 1) if qr_cell_pref else 0
-            )
-            ak_h = ak_bw
-            ak_n, ak_w = 1, 2
-        else:
-            ak_n, ak_w, ak_bw = _pick_narrow_wide(
-                ak,
-                ak_type,
-                max(2, settings.barcode_narrow - 1),
-                max(4, settings.barcode_wide - 2),
-                max_w,
-            )
-        ak_txt = _make_text(ak, 0, w, max_w, font_ak)
-
-    item_txt = _make_text(item, 0, w, max_w, font_item) if item else None
-    parca_txt = _make_text(parca, 0, w, max_w, font_item) if parca else None
-    brand_txt = (
-        _make_text(brand, 0, w, max_w, font_brand, kind="brand") if brand else None
-    )
-
-    content_h = bc_h + gap_after_bc + main_txt.height
-    if ak and ak_txt:
-        content_h += gap_bc + ak_h + gap_after_bc + ak_txt.height
-    if item_txt:
-        content_h += gap_after_txt + item_txt.height
-    if parca_txt:
-        content_h += gap_after_txt + parca_txt.height
-
-    brand_gap = int(round(2.0 * dpm))
-    brand_block = (brand_txt.height + brand_gap) if brand_txt else 0
-
-    # Marka için üst/alt rezerv; içerik kalan alanda dikey ortalanır
-    top_reserve = margin + (brand_block if brand_txt and brand_pos == "top" else 0)
-    bottom_reserve = margin + (brand_block if brand_txt and brand_pos == "bottom" else 0)
+    brand_block = brand_h + int(round(2.0 * dpm)) if brand_lines else 0
+    top_reserve = margin + (brand_block if brand_pos == "top" else 0)
+    bottom_reserve = margin + (brand_block if brand_pos == "bottom" else 0)
     usable = max(0, h - top_reserve - bottom_reserve)
-    y = top_reserve + max(0, (usable - content_h) // 2)
+    min_bc = int(round(4.0 * dpm))
+
+    steps = _FIT_STEPS if s.auto_fit else _FIT_STEPS[:1]
+    plan = None
+    for gap_k, bc_k, drop in steps:
+        gap_after_bc = int(round(s.gap_after_barcode_mm * dpm * gap_k))
+        gap_after_txt = int(round(s.gap_after_text_mm * dpm * gap_k))
+        gap_bc = int(round(s.gap_between_barcodes_mm * dpm * gap_k))
+        # Küçültme 4 mm altına inmez (kullanıcı zaten daha kısa seçtiyse o kalır)
+        bc_user = s.barcode_height_mm * dpm
+        ak_user = s.ak_barcode_height_mm * dpm
+        bc_h = int(round(max(min(min_bc, bc_user), bc_user * bc_k)))
+        ak_h = int(round(max(min(min_bc, ak_user), ak_user * bc_k)))
+
+        def lv(level: int) -> int:
+            return max(1, _clamp_font(level) - drop)
+
+        col_w = max_w
+        col_gap = max(gap_bc, int(round(2.0 * dpm)))
+        if side_by_side:
+            col_w = max(40, (max_w - col_gap) // 2)
+
+        main_col = _barcode_column(
+            barkod, main_type, bc_h, s.barcode_narrow, s.barcode_wide,
+            qr_cell_pref, qr_ecc, col_w, lv(s.font_barkod), s.show_main_text,
+            gap_after_bc, mode, max_lines,
+        )
+        ak_col = None
+        if ak:
+            ak_col = _barcode_column(
+                ak, ak_type, ak_h,
+                max(2, s.barcode_narrow - 1), max(4, s.barcode_wide - 2),
+                max(1, qr_cell_pref - 1) if qr_cell_pref else 0, qr_ecc,
+                col_w, lv(s.font_ak), s.show_ak_text, gap_after_bc, mode, max_lines,
+            )
+
+        extra: list[tuple[list[LayoutText], int]] = []
+        for txt in (item, parca):
+            if txt:
+                extra.append(_text_block(txt, max_w, lv(s.font_item), mode, max_lines))
+
+        if ak_col and side_by_side:
+            top_h = max(main_col.height, ak_col.height)
+        elif ak_col:
+            top_h = main_col.height + gap_bc + ak_col.height
+        else:
+            top_h = main_col.height
+        content_h = top_h + sum(gap_after_txt + bh for _, bh in extra)
+
+        plan = (gap_k, bc_k, drop, gap_bc, gap_after_txt, col_w, col_gap,
+                main_col, ak_col, extra, top_h, content_h)
+        if content_h <= usable:
+            break
+
+    assert plan is not None
+    (gap_k, bc_k, drop, gap_bc, gap_after_txt, col_w, col_gap,
+     main_col, ak_col, extra, top_h, content_h) = plan
+    overflow = content_h > usable
 
     barcodes: list[LayoutBarcode] = []
     texts: list[LayoutText] = []
+    cx = w // 2
+    y = top_reserve + max(0, (usable - content_h) // 2)
 
-    if brand_txt and brand_pos == "top":
-        texts.append(
-            LayoutText(
-                text=brand_txt.text,
-                x=brand_txt.x,
-                y=margin,
-                font=brand_txt.font,
-                x_mul=brand_txt.x_mul,
-                y_mul=brand_txt.y_mul,
-                width=brand_txt.width,
-                height=brand_txt.height,
-                kind="brand",
-            )
-        )
+    if brand_lines and brand_pos == "top":
+        for t in brand_lines:
+            t.x = max(0, cx - t.width // 2)
+            t.y += margin
+            texts.append(t)
 
-    # Ana barkod + metin — ortak merkez (kağıda ve birbirine ortalı)
-    bc_x, tx = _aligned_pair_x(w, main_bw, main_txt.width)
-    barcodes.append(
-        LayoutBarcode(
-            data=barkod,
-            x=bc_x,
-            y=y,
-            width=main_bw,
-            height=bc_h,
-            narrow=main_n,
-            wide=main_w,
-            code_type=main_type,
-            kind=main_kind,
-            cell=main_cell,
-            ecc=qr_ecc,
-        )
-    )
-    y += bc_h + gap_after_bc
-    texts.append(
-        LayoutText(
-            text=main_txt.text,
-            x=tx,
-            y=y,
-            font=main_txt.font,
-            x_mul=main_txt.x_mul,
-            y_mul=main_txt.y_mul,
-            width=main_txt.width,
-            height=main_txt.height,
-        )
-    )
-    y += main_txt.height
+    if ak_col and side_by_side:
+        off = (col_w + col_gap) // 2
+        # Sütunlar kendi içinde dikey ortalı
+        main_col.place(cx - off, y + (top_h - main_col.height) // 2, barcodes, texts)
+        ak_col.place(cx + off, y + (top_h - ak_col.height) // 2, barcodes, texts)
+    else:
+        main_col.place(cx, y, barcodes, texts)
+        if ak_col:
+            ak_col.place(cx, y + main_col.height + gap_bc, barcodes, texts)
+    y += top_h
 
-    if ak and ak_txt:
-        y += gap_bc
-        ak_x, ak_tx = _aligned_pair_x(w, ak_bw, ak_txt.width)
-        barcodes.append(
-            LayoutBarcode(
-                data=ak,
-                x=ak_x,
-                y=y,
-                width=ak_bw,
-                height=ak_h,
-                narrow=ak_n,
-                wide=ak_w,
-                code_type=ak_type,
-                kind=ak_kind,
-                cell=ak_cell,
-                ecc=qr_ecc,
-            )
-        )
-        y += ak_h + gap_after_bc
-        texts.append(
-            LayoutText(
-                text=ak_txt.text,
-                x=ak_tx,
-                y=y,
-                font=ak_txt.font,
-                x_mul=ak_txt.x_mul,
-                y_mul=ak_txt.y_mul,
-                width=ak_txt.width,
-                height=ak_txt.height,
-            )
-        )
-        y += ak_txt.height
-
-    if item_txt:
+    for lines, block_h in extra:
         y += gap_after_txt
-        texts.append(
-            LayoutText(
-                text=item_txt.text,
-                x=item_txt.x,
-                y=y,
-                font=item_txt.font,
-                x_mul=item_txt.x_mul,
-                y_mul=item_txt.y_mul,
-                width=item_txt.width,
-                height=item_txt.height,
-            )
+        for t in lines:
+            t.x = max(0, cx - t.width // 2)
+            t.y += y
+            texts.append(t)
+        y += block_h
+
+    if brand_lines and brand_pos == "bottom":
+        y0 = h - margin - brand_h
+        for t in brand_lines:
+            t.x = max(0, cx - t.width // 2)
+            t.y += y0
+            texts.append(t)
+
+    # Yazıcı kalibrasyon kaydırması
+    ox = int(round(s.offset_x_mm * dpm))
+    oy = int(round(s.offset_y_mm * dpm))
+    if ox or oy:
+        for obj in (*barcodes, *texts):
+            obj.x = max(0, obj.x + ox)
+            obj.y = max(0, obj.y + oy)
+
+    notes: list[str] = []
+    if (gap_k, bc_k, drop) != (1.0, 1.0, 0):
+        notes.append(
+            f"Otomatik sığdırıldı: barkod %{round(bc_k * 100)}, "
+            f"boşluk %{round(gap_k * 100)}"
+            + (f", font −{drop}" if drop else "")
         )
-        y += item_txt.height
-
-    if parca_txt:
-        y += gap_after_txt
-        texts.append(
-            LayoutText(
-                text=parca_txt.text,
-                x=parca_txt.x,
-                y=y,
-                font=parca_txt.font,
-                x_mul=parca_txt.x_mul,
-                y_mul=parca_txt.y_mul,
-                width=parca_txt.width,
-                height=parca_txt.height,
-            )
+    if overflow:
+        notes.append(
+            "Etikete sığmıyor: 2. barkodu 'Yan yana' alın, barkod yüksekliğini, "
+            "kenar boşluğunu azaltın ya da bazı alanları gizleyin."
         )
+    if main_col.too_wide or (ak_col is not None and ak_col.too_wide):
+        notes.append("Barkod verisi çok uzun; genişliğe sığmıyor.")
 
-    if brand_txt and brand_pos == "bottom":
-        texts.append(
-            LayoutText(
-                text=brand_txt.text,
-                x=brand_txt.x,
-                y=h - margin - brand_txt.height,
-                font=brand_txt.font,
-                x_mul=brand_txt.x_mul,
-                y_mul=brand_txt.y_mul,
-                width=brand_txt.width,
-                height=brand_txt.height,
-                kind="brand",
-            )
-        )
-
-    return LabelLayout(width=w, height=h, barcodes=barcodes, texts=texts)
+    return LabelLayout(
+        width=w,
+        height=h,
+        barcodes=barcodes,
+        texts=texts,
+        overflow=overflow or main_col.too_wide or bool(ak_col and ak_col.too_wide),
+        fit_note="\n".join(notes),
+        margin=margin,
+    )
 
 
-def build_tspl(label: LabelData, settings: LabelSettings) -> str:
+# ── TSPL çıktısı ─────────────────────────────────────────────────────
+
+
+def _command_parts(
+    label: LabelData, settings: LabelSettings
+) -> list[str | tuple[str, bytes, str]]:
+    """Komut satırları; BITMAP satırları (başlık, ikili veri, açıklama) olarak döner."""
     layout = compute_layout(label, settings)
-    lines: list[str] = [
+    parts: list[str | tuple[str, bytes, str]] = [
         f"SIZE {settings.width_mm:g} mm,{settings.height_mm:g} mm",
         f"GAP {settings.gap_mm:g} mm,0 mm",
         "CLS",
@@ -546,27 +647,55 @@ def build_tspl(label: LabelData, settings: LabelSettings) -> str:
             if ecc not in {"L", "M", "Q", "H"}:
                 ecc = "M"
             cell = max(1, min(10, int(bc.cell or 4)))
-            lines.append(
-                f'QRCODE {bc.x},{bc.y},{ecc},{cell},A,0,M2,S7,"{bc.data}"'
-            )
+            parts.append(f'QRCODE {bc.x},{bc.y},{ecc},{cell},A,0,M2,S7,"{bc.data}"')
         else:
             ctype = normalize_barcode_type(bc.code_type or settings.barcode_type)
-            lines.append(
+            parts.append(
                 f'BARCODE {bc.x},{bc.y},"{ctype}",{bc.height},'
                 f'0,0,{bc.narrow},{bc.wide},"{bc.data}"'
             )
 
     for t in layout.texts:
-        lines.append(
-            f'TEXT {t.x},{t.y},"{t.font}",0,{t.x_mul},{t.y_mul},"{t.text}"'
-        )
+        if t.mode == "graphic":
+            img = render_text_image(t.text, t.height)
+            wb, hh, data = tspl_bitmap_payload(img)
+            parts.append((f"BITMAP {t.x},{t.y},{wb},{hh},0,", data, t.text))
+        else:
+            parts.append(
+                f'TEXT {t.x},{t.y},"{t.font}",0,{t.x_mul},{t.y_mul},"{t.text}"'
+            )
 
-    lines.append(f"PRINT {settings.copies},1")
+    parts.append(f"PRINT {settings.copies},1")
+    return parts
+
+
+def build_tspl(label: LabelData, settings: LabelSettings) -> str:
+    """Okunabilir TSPL (önizleme sekmesi). BITMAP verisi özetlenir."""
+    lines: list[str] = []
+    for part in _command_parts(label, settings):
+        if isinstance(part, tuple):
+            head, data, text = part
+            lines.append(f'{head}<{len(data)} bayt: "{text}">')
+        else:
+            lines.append(part)
     return "\r\n".join(lines) + "\r\n"
 
 
-def build_batch_tspl(labels: list[LabelData], settings: LabelSettings) -> str:
-    return "".join(build_tspl(label, settings) for label in labels)
+def build_tspl_bytes(label: LabelData, settings: LabelSettings) -> bytes:
+    """Yazıcıya gidecek ham TSPL."""
+    out = bytearray()
+    for part in _command_parts(label, settings):
+        if isinstance(part, tuple):
+            head, data, _ = part
+            out += head.encode("ascii") + data
+        else:
+            out += part.encode("utf-8", errors="replace")
+        out += b"\r\n"
+    return bytes(out)
+
+
+def build_batch_tspl(labels: list[LabelData], settings: LabelSettings) -> bytes:
+    return b"".join(build_tspl_bytes(label, settings) for label in labels)
 
 
 def describe_layout(label: LabelData, settings: LabelSettings | None = None) -> str:
@@ -577,6 +706,8 @@ def describe_layout(label: LabelData, settings: LabelSettings | None = None) -> 
         f"Tip Ana:{BARCODE_TYPES.get(main_t, main_t)}  "
         f"2.barkod:{BARCODE_TYPES.get(ak_t, ak_t)}",
         f"Font Barkod:{s.font_barkod}  A-K:{s.font_ak}  Item:{s.font_item}",
+        f"Metin: {TEXT_MODES.get(s.text_mode, s.text_mode)}  ·  "
+        f"2. barkod: {AK_POSITIONS.get(s.ak_position, s.ak_position)}",
         f"[BARKOD] {label.barkod}",
     ]
     if _norm(label.ak_barkod):
@@ -587,4 +718,7 @@ def describe_layout(label: LabelData, settings: LabelSettings | None = None) -> 
         rows.append(f"[Parça]  {label.parca_ad}")
     if _norm(s.brand_text):
         rows.append(f"[Marka]  {s.brand_text} ({s.brand_position})")
+    note = compute_layout(label, s).fit_note
+    if note:
+        rows.append(f"[Not]    {note}")
     return "\n".join(rows)

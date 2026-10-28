@@ -3,4 +3,5 @@ Pillow>=10.0.0
 python-barcode>=0.15.0
 ctkfontawesome>=0.8.0
 qrcode>=7.4.0
+certifi>=2024.2.2
 pywin32>=306; sys_platform == "win32"

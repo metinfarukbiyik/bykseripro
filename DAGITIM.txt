@@ -17,8 +17,8 @@ GitHub Actions (otomatik Mac + Windows paket)
 ---------------------------------------------
   1) Projeyi GitHub’a push et
   2) Sürüm etiketi at:
-       git tag v1.1.1
-       git push origin v1.1.1
+       git tag v1.2.0
+       git push origin v1.2.0
   3) Actions → “Release packages” çalışır
   4) Repo → Releases → zip’leri indir
 
@@ -29,6 +29,13 @@ GitHub Actions (otomatik Mac + Windows paket)
 
   Paylaşmayın: repo ana sayfa, Releases sayfası, Source code.
   (Repo public; indirme açıktır. Source code’u link olarak vermeyin.)
+
+  Uygulama içi güncelleme (v1.2.0+):
+    Program açılışta GitHub “latest” sürümünü sorgular. Yeni sürüm varsa
+    “Güncelleme geldi” bildirimi çıkar; “Şimdi güncelle” paketi indirir,
+    uygulamayı kapatır, aynı klasöre kurar ve yeniden açar
+    (config.json / Excel korunur). Yeni sürüm = VERSION’ı artır + yeni etiket.
+    Not: v1.1.1 ve öncesi bu özelliği içermez; bir kez elle güncellenmeli.
 
   Actions (geliştirici):
     https://github.com/metinfarukbiyik/bykseripro/actions

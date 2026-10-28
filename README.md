@@ -3,7 +3,7 @@
 **Excel’den seri barkod / seri no etiketlerini okuyup termal yazıcıya basan masaüstü uygulaması.**  
 Geliştirici: [BIYIK.DEV](https://biyik.dev) · İletişim: [metin@biyik.dev](mailto:metin@biyik.dev)
 
-Sürüm: **1.1.1**
+Sürüm: **1.2.0**
 
 ---
 
@@ -22,7 +22,10 @@ Python kurulumu gerekmez (hazır kurulum paketleriyle). İnternet bağlantısı 
 ## Öne çıkan özellikler
 
 - Excel’den toplu etiket listesi (seri no / barkod + ikinci barkod + metin alanları)
-- Canlı etiket önizlemesi
+- Canlı etiket önizlemesi (kağıttaki konumlarla birebir)
+- **Yerleşim ayarları:** alanları gizle/göster, 2. barkodu yan yana, boşluklar, otomatik sığdırma, yazıcı kalibrasyonu — dar etiketler (ör. 100×40 mm) için
+- Uzun metinler satırlara bölünür, her satır ortalı; Türkçe karakterler grafik olarak basılır
+- **Uygulama içi güncelleme:** yeni sürüm çıkınca “Güncelleme geldi” bildirimi, tek tıkla kurulum
 - Seçili satırları veya tüm listeyi basma
 - Test baskı (örnek etiket)
 - Barkod tipi seçimi (Code 128 vb.) ve QR desteği

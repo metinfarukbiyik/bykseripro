@@ -4,18 +4,16 @@ from __future__ import annotations
 
 from io import BytesIO
 
-from PIL import Image, ImageDraw, ImageFont, ImageTk
+from PIL import Image, ImageDraw, ImageTk
 
-from tspl_builder import LabelData, LabelSettings, LayoutBarcode, compute_layout, normalize_barcode_type
-
-
-def _load_font(size: int) -> ImageFont.ImageFont:
-    for name in ("arialbd.ttf", "arial.ttf", "Arial.ttf", "segoeui.ttf", "DejaVuSans-Bold.ttf"):
-        try:
-            return ImageFont.truetype(name, max(8, size))
-        except OSError:
-            continue
-    return ImageFont.load_default()
+from text_render import render_text_image
+from tspl_builder import (
+    LabelData,
+    LabelSettings,
+    LayoutBarcode,
+    compute_layout,
+    normalize_barcode_type,
+)
 
 
 def _fallback_bars(data: str, target_w: int, target_h: int) -> Image.Image:
@@ -107,37 +105,44 @@ def _render_symbol(bc: LayoutBarcode, target_w: int, target_h: int) -> Image.Ima
     return _make_linear(bc.data, bc.code_type, target_w, target_h)
 
 
-def render_label_image(
-    label: LabelData,
-    settings: LabelSettings,
-    scale: float = 0.55,
-) -> Image.Image:
-    """Etiket yerleşimini görsel olarak çizer — TSPL layout ile aynı koordinatlar."""
+def render_label_image(label: LabelData, settings: LabelSettings) -> Image.Image:
+    """
+    Etiketi yazıcı çözünürlüğünde (1 piksel = 1 dot) çizer.
+    Barkod ve metinler TSPL'deki x/y değerleriyle aynı yere konur → kağıtla birebir.
+    """
     layout = compute_layout(label, settings)
-    w = max(1, int(layout.width * scale))
-    h = max(1, int(layout.height * scale))
+    w, h = max(1, layout.width), max(1, layout.height)
     img = Image.new("RGB", (w, h), "white")
     draw = ImageDraw.Draw(img)
-    draw.rectangle([0, 0, w - 1, h - 1], outline="#CCCCCC", width=2)
+
+    # Kenar boşluğu kılavuzu (yalnız ekranda)
+    m = layout.margin
+    if m > 0 and w > 2 * m and h > 2 * m:
+        for x in range(m, w - m, 12):
+            draw.line([x, m, min(x + 5, w - m), m], fill="#D5DCE4")
+            draw.line([x, h - m, min(x + 5, w - m), h - m], fill="#D5DCE4")
+        for y in range(m, h - m, 12):
+            draw.line([m, y, m, min(y + 5, h - m)], fill="#D5DCE4")
+            draw.line([w - m, y, w - m, min(y + 5, h - m)], fill="#D5DCE4")
 
     for bc in layout.barcodes:
-        bw = max(8, int(bc.width * scale))
-        bh = max(8, int(bc.height * scale))
-        bx = int(round((w - bw) / 2))
-        by = int(bc.y * scale)
-        barcode_img = _render_symbol(bc, bw, bh)
-        img.paste(barcode_img, (bx, by))
+        symbol = _render_symbol(bc, max(8, bc.width), max(8, bc.height))
+        img.paste(symbol, (bc.x, bc.y))
 
     for t in layout.texts:
-        px = max(10, int(t.height * scale * 0.95))
-        font = _load_font(px)
-        bbox = draw.textbbox((0, 0), t.text, font=font)
-        tw = bbox[2] - bbox[0]
-        tx = max(0, (w - tw) // 2)
-        ty = int(t.y * scale)
-        fill = "#666666" if getattr(t, "kind", "") == "brand" else "black"
-        draw.text((tx, ty), t.text, fill=fill, font=font)
+        if t.mode == "graphic":
+            glyphs = render_text_image(t.text, t.height)
+        else:
+            # Yazıcı fontu: yaklaşık görünüm, ama yazıcının kaplayacağı kutuya oturtulur
+            glyphs = render_text_image(t.text, t.height).resize(
+                (max(1, t.width), max(1, t.height)), Image.Resampling.LANCZOS
+            )
+        ink = "#666666" if t.kind == "brand" else "black"
+        mask = glyphs.point(lambda p: 255 - p)
+        img.paste(Image.new("RGB", glyphs.size, ink), (t.x, t.y), mask)
 
+    border = "#D93025" if layout.overflow else "#CCCCCC"
+    draw.rectangle([0, 0, w - 1, h - 1], outline=border, width=4 if layout.overflow else 2)
     return img
 
 
@@ -145,12 +150,13 @@ def render_label_photoimage(
     label: LabelData,
     settings: LabelSettings,
     max_side: int = 320,
+    max_size: tuple[int, int] | None = None,
 ) -> tuple[ImageTk.PhotoImage, Image.Image]:
-    """Tkinter'da gösterilecek PhotoImage + ham PIL görüntüsü."""
-    base = render_label_image(label, settings, scale=0.55)
-    side = max(base.width, base.height)
-    if side > max_side:
-        ratio = max_side / side
+    """Tkinter'da gösterilecek PhotoImage + ham PIL görüntüsü (alana sığdırılmış)."""
+    base = render_label_image(label, settings)
+    box_w, box_h = max_size or (max_side, max_side)
+    ratio = min(box_w / base.width, box_h / base.height)
+    if ratio != 1:
         base = base.resize(
             (max(1, int(base.width * ratio)), max(1, int(base.height * ratio))),
             Image.Resampling.LANCZOS,

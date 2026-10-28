@@ -326,7 +326,12 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
     _bullet(s3, "Sol liste: Excel veya seri üretim satırları")
     _bullet(s3, "Ara kutusu: listede anında filtre")
     _bullet(s3, "Listeyi temizle: tüm etiketleri listeden siler")
-    _bullet(s3, "Sağ önizleme: Görsel + TSPL sekmeleri")
+    _bullet(s3, "Sağ önizleme: Görsel + TSPL sekmeleri (kağıttaki konumlarla birebir)")
+    _bullet(
+        s3,
+        "Yerleşim ayarları… (veya önizlemeye çift tık): alanları gizle/göster, "
+        "2. barkodu yan yana al, boşluklar, otomatik sığdırma, kalibrasyon",
+    )
     _p(s3, "Alt butonlar", bold=True)
     _bullet(s3, "Test Baskı · Seçilileri Bas · Tümünü Bas · Ayarları Kaydet · Kullanım · Hakkında")
 
@@ -434,6 +439,14 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
     _bullet(s5, "Orta metin (Excel 3. sütun)")
     _bullet(s5, "Alt metin (Excel 4. sütun)")
     _bullet(s5, "Marka damgası (alt seçildiyse)")
+    _p(
+        s5,
+        "Uzun metinler satırlara bölünür ve her satır ortalanır. Dar etiketlerde "
+        "(ör. 100×40 mm) “Yerleşim ayarları → Dar etiket önerisi” 2. barkodu yan "
+        "yana alır; “Otomatik sığdır” açıksa içerik kağıda sığacak kadar küçülür. "
+        "Sığmayan etikette önizleme kırmızı çerçeve gösterir.",
+        muted=True,
+    )
 
     # --- 6 Test ---
     s6 = _section(body, "6. Test Baskı (örnek)", icons, "flask")
@@ -455,6 +468,15 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
     _bullet(s7, "Barkod kayık / küçük: önizleme + font / yükseklik ayarı.")
     _bullet(s7, "2. barkod basılmıyor: B sütunu boşsa bilinçli olarak atlanır.")
     _bullet(s7, "Filtre sonrası az satır: Ara kutusunu temizleyin.")
+    _bullet(
+        s7,
+        "Baskı kağıtta kayık: Yerleşim ayarları → Yazıcı kalibrasyonu ile mm kaydırın.",
+    )
+    _bullet(
+        s7,
+        "Metinler bozuk / basılmıyor: Yerleşim ayarları → Metin basımı “Yazıcı fontu” deneyin.",
+    )
+    _bullet(s7, "Güncelleme: açılışta otomatik denetlenir; elle “Güncelleme” butonu.")
 
     # --- 8 Destek ---
     s8 = _section(body, "8. Destek", icons, "headset")

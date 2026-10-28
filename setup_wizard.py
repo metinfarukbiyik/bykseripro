@@ -15,6 +15,7 @@ import shutil
 import sys
 import tempfile
 import threading
+import time
 import zipfile
 from pathlib import Path
 
@@ -43,6 +44,8 @@ C_GOLD = "#B8962E"
 C_MUTED = "#6B7380"
 C_LINE = "#E6E9EE"
 C_OK = "#2E7D4F"
+
+USER_FILE_SUFFIXES = {".json", ".xlsx", ".xlsm", ".xls"}
 
 
 def _version() -> str:
@@ -399,6 +402,16 @@ def install_files(progress_cb=None, dest: Path | None = None) -> Path:
     zip_path = _find_payload_zip()
     folder = _find_app_folder()
 
+    # Güncellemede kullanıcı dosyaları (config.json, Excel) korunur
+    preserved: dict[str, bytes] = {}
+    if dest.is_dir():
+        for f in dest.iterdir():
+            if f.is_file() and f.suffix.lower() in USER_FILE_SUFFIXES:
+                try:
+                    preserved[f.name] = f.read_bytes()
+                except OSError:
+                    pass
+
     if dest.exists():
         try:
             shutil.rmtree(dest)
@@ -445,6 +458,12 @@ def install_files(progress_cb=None, dest: Path | None = None) -> Path:
     if not (dest / EXE_NAME).exists():
         raise FileNotFoundError(f"Kurulum sonrası {EXE_NAME} bulunamadı.")
 
+    for name, data in preserved.items():
+        try:
+            (dest / name).write_bytes(data)
+        except OSError:
+            pass
+
     if progress_cb:
         progress_cb(75, "Kısayollar oluşturuluyor…")
 
@@ -486,6 +505,30 @@ def install_files(progress_cb=None, dest: Path | None = None) -> Path:
     return dest
 
 
+def _wait_for_pid(argv: list[str], timeout_s: float = 60.0) -> None:
+    """--wait-pid=N: güncellenen uygulama kapanana kadar bekle (dosya kilitleri)."""
+    pid = 0
+    for a in argv:
+        if a.startswith("--wait-pid="):
+            try:
+                pid = int(a.split("=", 1)[1])
+            except ValueError:
+                pid = 0
+    if pid <= 0:
+        return
+    try:
+        import ctypes
+
+        synchronize = 0x00100000
+        handle = ctypes.windll.kernel32.OpenProcess(synchronize, False, pid)
+        if handle:
+            ctypes.windll.kernel32.WaitForSingleObject(handle, int(timeout_s * 1000))
+            ctypes.windll.kernel32.CloseHandle(handle)
+    except Exception:
+        pass
+    time.sleep(0.8)
+
+
 def _parse_dir_arg(argv: list[str]) -> Path | None:
     for i, a in enumerate(argv):
         if a.startswith("/DIR="):
@@ -498,9 +541,10 @@ def _parse_dir_arg(argv: list[str]) -> Path | None:
 
 
 class SetupApp(tk.Tk):
-    def __init__(self, initial_dir: Path | None = None) -> None:
+    def __init__(self, initial_dir: Path | None = None, update: bool = False) -> None:
         super().__init__()
-        self.title(f"{APP_NAME} — Kurulum")
+        self._update_mode = update
+        self.title(f"{APP_NAME} — {'Güncelleme' if update else 'Kurulum'}")
         self.configure(bg=C_BG)
         self.resizable(False, False)
         self.geometry("560x520")
@@ -614,6 +658,10 @@ class SetupApp(tk.Tk):
         )
         self.btn_install.pack(side="right", padx=(0, 8))
 
+        if self._update_mode:
+            self.status_var.set("Yeni sürüm kuruluyor…")
+            self.after(300, self._start)
+
     def _center(self) -> None:
         self.update_idletasks()
         w, h = 560, 520
@@ -688,7 +736,7 @@ class SetupApp(tk.Tk):
                 result = install_files(cb, dest=dest)
                 self.after(0, lambda: self._done(result, None))
             except Exception as exc:
-                self.after(0, lambda: self._done(None, exc))
+                self.after(0, lambda e=exc: self._done(None, e))
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -703,6 +751,13 @@ class SetupApp(tk.Tk):
             return
         self.status_var.set("Kurulum tamamlandı.")
         self.progress_var.set(100)
+        if self._update_mode and dest is not None:
+            try:
+                os.startfile(str(dest / EXE_NAME))  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            self.destroy()
+            return
         messagebox.showinfo(
             "Kurulum",
             f"{APP_NAME} kuruldu.\n\n"
@@ -725,6 +780,18 @@ def main() -> None:
     dir_arg = _parse_dir_arg(argv)
     silent = any(a in {"/S", "/silent", "--silent"} for a in argv)
     auto_install = any(a in {"/INSTALL", "--install"} for a in argv)
+    update = "--update" in argv
+
+    if update:
+        # Uygulama içinden: önce eski sürümün kapanmasını bekle
+        _wait_for_pid(argv)
+        dest = dir_arg or _default_user_root()
+        if _path_needs_admin(dest) and not _is_admin():
+            if _relaunch_elevated([f"--dir={dest}", "--update"]):
+                return
+        app = SetupApp(initial_dir=dest, update=True)
+        app.mainloop()
+        return
 
     if silent or (auto_install and dir_arg is not None and _is_admin()):
         dest = dir_arg or _default_user_root()

@@ -2,7 +2,8 @@
 #
 # Kullanım:
 #   1) GitHub'a push et
-#   2) Sürüm etiketi at:  git tag v1.1.1 && git push origin v1.1.1
+#   2) VERSION'ı artır, etiketi at:  git tag v1.2.0 && git push origin v1.2.0
+#      (Uygulama içi güncelleme bu etiketi "latest" olarak görür.)
 #   3) Actions build eder → Releases sayfasında zip'ler indirilebilir
 #
 # Manuel: Actions → "Release packages" → Run workflow
@@ -163,6 +164,7 @@ jobs:
           tag_name: ${{ needs.version.outputs.tag }}
           name: BYK Seri Baskı Pro ${{ needs.version.outputs.ver }}
           make_latest: true
+          generate_release_notes: true
           body: |
             ## İndirme (yalnızca kurulum paketleri)
 

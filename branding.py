@@ -24,3 +24,8 @@ APP_REG_ID = f"BiyikDev_{APP_SHORT}"
 SPEC_WIN = f"{APP_SHORT}.spec"
 SPEC_MAC = f"{APP_SHORT}-macOS.spec"
 RELEASE_PREFIX = APP_SHORT
+
+# Güncelleme kaynağı (GitHub Releases)
+GITHUB_REPO = "metinfarukbiyik/bykseripro"
+UPDATE_ASSET_WINDOWS = f"{APP_SHORT}_Kurulum.zip"
+UPDATE_ASSET_MACOS = f"{APP_SHORT}_macOS.zip"

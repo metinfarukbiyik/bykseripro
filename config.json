@@ -31,5 +31,17 @@
   },
   "ak_barcode_type": "128",
   "qr_ecc": "M",
-  "qr_cell": 4
+  "qr_cell": 4,
+  "show_main_text": true,
+  "show_ak": true,
+  "show_ak_text": true,
+  "show_item": true,
+  "show_parca": true,
+  "ak_position": "below",
+  "auto_fit": true,
+  "max_text_lines": 2,
+  "text_mode": "graphic",
+  "offset_x_mm": 0.0,
+  "offset_y_mm": 0.0,
+  "update_check": true
 }

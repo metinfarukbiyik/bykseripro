@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 import tkinter as tk
 import webbrowser
 from pathlib import Path
@@ -28,6 +29,7 @@ from branding import APP_DISPLAY, APP_TITLE
 from excel_loader import ColumnHeaders, load_labels_from_excel
 from help_dialog import open_help
 from label_preview import render_label_photoimage
+from layout_dialog import LayoutDialog
 from paths import app_home, assets_dir, resource_dir
 from printer_raw import default_printer, list_printers, send_raw
 from serial_dialog import open_serial_dialog
@@ -40,15 +42,19 @@ from tspl_builder import (
     LabelSettings,
     build_batch_tspl,
     build_tspl,
+    compute_layout,
     describe_layout,
     normalize_barcode_type,
 )
+from update_dialog import UpdateDialog
+from updater import check_latest, current_version
 from ui_icons import (
     C_GOLD,
     C_GREEN,
     C_MUTED,
     C_NAVY,
     C_TEAL,
+    C_WARN,
     IconStore,
     icon_button,
     icon_labelframe,
@@ -119,6 +125,22 @@ def _legacy_font(cfg: dict, key: str, default: int) -> int:
     return default
 
 
+# Yerleşim ayarları (config anahtarı = LabelSettings alanı) → varsayılan
+LAYOUT_DEFAULTS: dict[str, object] = {
+    "show_main_text": True,
+    "show_ak": True,
+    "show_ak_text": True,
+    "show_item": True,
+    "show_parca": True,
+    "ak_position": "below",
+    "auto_fit": True,
+    "max_text_lines": 2,
+    "text_mode": "graphic",
+    "offset_x_mm": 0.0,
+    "offset_y_mm": 0.0,
+}
+
+
 def settings_from_config(cfg: dict, **overrides) -> LabelSettings:
     return LabelSettings(
         width_mm=float(overrides.get("width_mm", cfg.get("label_width_mm", 98))),
@@ -149,7 +171,6 @@ def settings_from_config(cfg: dict, **overrides) -> LabelSettings:
         ak_barcode_height_mm=float(
             overrides.get("ak_barcode_height_mm", cfg.get("ak_barcode_height_mm", 14))
         ),
-        barcode_narrow=int(cfg.get("barcode_narrow", 3)),
         barcode_wide=int(cfg.get("barcode_wide", 6)),
         qr_ecc=str(overrides.get("qr_ecc", cfg.get("qr_ecc", "M"))),
         qr_cell=int(overrides.get("qr_cell", cfg.get("qr_cell", 4))),
@@ -161,13 +182,31 @@ def settings_from_config(cfg: dict, **overrides) -> LabelSettings:
         brand_position=str(
             overrides.get("brand_position", cfg.get("brand_position", "bottom"))
         ),
-        gap_after_barcode_mm=float(cfg.get("gap_after_barcode_mm", 1.5)),
-        gap_after_text_mm=float(
-            cfg.get("gap_after_text_mm", cfg.get("gap_between_lines_mm", 2.5))
+        barcode_narrow=int(overrides.get("barcode_narrow", cfg.get("barcode_narrow", 3))),
+        gap_after_barcode_mm=float(
+            overrides.get("gap_after_barcode_mm", cfg.get("gap_after_barcode_mm", 1.5))
         ),
-        gap_between_barcodes_mm=float(cfg.get("gap_between_barcodes_mm", 4)),
-        margin_mm=float(cfg.get("margin_mm", 6)),
+        gap_after_text_mm=float(
+            overrides.get(
+                "gap_after_text_mm",
+                cfg.get("gap_after_text_mm", cfg.get("gap_between_lines_mm", 2.5)),
+            )
+        ),
+        gap_between_barcodes_mm=float(
+            overrides.get(
+                "gap_between_barcodes_mm", cfg.get("gap_between_barcodes_mm", 4)
+            )
+        ),
+        margin_mm=float(overrides.get("margin_mm", cfg.get("margin_mm", 6))),
+        **{
+            key: type(default)(overrides.get(key, cfg.get(key, default)))
+            for key, default in LAYOUT_DEFAULTS.items()
+        },
     )
+
+
+def _num(var: tk.Variable) -> float:
+    return float(str(var.get()).replace(",", ".").strip() or 0)
 
 
 def _font_combo_values() -> list[str]:
@@ -235,12 +274,58 @@ class LabelApp(tk.Tk):
             )
         )
         self.status_var = tk.StringVar(value="Excel dosyasını yükleyin.")
+        self._init_layout_vars()
+        self._layout_dialog: LayoutDialog | None = None
+        self._update_info = None
+        self._update_dialog: UpdateDialog | None = None
+        self._update_result: tuple | None = None
 
         self._build_ui()
         self._load_printers()
         # İlk layout oturduktan sonra yükle — önizleme gerçek tuval boyutuna sığsın
         if Path(self.excel_path.get()).exists():
             self.after_idle(self.load_excel)
+        if self.cfg.get("update_check", True):
+            self.after(1500, lambda: self.check_updates(silent=True))
+
+    def _init_layout_vars(self) -> None:
+        """Yerleşim penceresinin bağlandığı değişkenler (config'ten)."""
+        c = self.cfg
+
+        def bvar(key: str) -> tk.BooleanVar:
+            return tk.BooleanVar(value=bool(c.get(key, LAYOUT_DEFAULTS[key])))
+
+        def svar(key: str, default) -> tk.StringVar:
+            return tk.StringVar(value=str(c.get(key, default)))
+
+        self.show_main_text_var = bvar("show_main_text")
+        self.show_ak_var = bvar("show_ak")
+        self.show_ak_text_var = bvar("show_ak_text")
+        self.show_item_var = bvar("show_item")
+        self.show_parca_var = bvar("show_parca")
+        self.auto_fit_var = bvar("auto_fit")
+        self.ak_pos_var = svar("ak_position", "below")
+        self.text_mode_var = svar("text_mode", "graphic")
+        self.max_lines_var = svar("max_text_lines", 2)
+        self.offset_x_var = svar("offset_x_mm", 0)
+        self.offset_y_var = svar("offset_y_mm", 0)
+        self.margin_var = svar("margin_mm", 6)
+        self.gap_after_bc_var = svar("gap_after_barcode_mm", 1.5)
+        self.gap_barcodes_var = svar("gap_between_barcodes_mm", 4)
+        self.gap_text_var = svar(
+            "gap_after_text_mm", c.get("gap_between_lines_mm", 2.5)
+        )
+        self.narrow_var = svar("barcode_narrow", 3)
+        self.font_brand_var = tk.IntVar(value=int(c.get("font_brand", 1)))
+        for var in (
+            self.show_main_text_var, self.show_ak_var, self.show_ak_text_var,
+            self.show_item_var, self.show_parca_var, self.auto_fit_var,
+            self.ak_pos_var, self.text_mode_var, self.max_lines_var,
+            self.offset_x_var, self.offset_y_var, self.margin_var,
+            self.gap_after_bc_var, self.gap_barcodes_var, self.gap_text_var,
+            self.narrow_var, self.font_brand_var,
+        ):
+            var.trace_add("write", lambda *_: self._refresh_preview())
 
     def _make_font_combo(self, parent, var: tk.IntVar, row: int, col: int) -> ttk.Combobox:
         combo = ttk.Combobox(
@@ -309,7 +394,9 @@ class LabelApp(tk.Tk):
             bg="#FFFFFF",
         ).pack(anchor="w")
 
-        tk.Frame(self, bg="#E6E9EE", height=1).pack(side="top", fill="x")
+        self._header_sep = tk.Frame(self, bg="#E6E9EE", height=1)
+        self._header_sep.pack(side="top", fill="x")
+        self._build_update_banner()
 
         credit = ttk.Frame(self)
         credit.pack(side="bottom", fill="x", padx=10, pady=(2, 8))
@@ -371,6 +458,14 @@ class LabelApp(tk.Tk):
             "circle-info",
             self.show_about,
             self._icons,
+        ).pack(side="left", padx=4)
+        icon_button(
+            actions,
+            "Güncelleme",
+            "cloud-arrow-down",
+            lambda: self.check_updates(silent=False),
+            self._icons,
+            fill=C_TEAL,
         ).pack(side="left", padx=4)
         ttk.Label(actions, textvariable=self.status_var).pack(side="right", padx=8)
 
@@ -614,12 +709,30 @@ class LabelApp(tk.Tk):
         else:
             tabs.add(tab_tspl, text="TSPL")
 
+        preview_bar = ttk.Frame(tab_visual)
+        preview_bar.pack(side="bottom", fill="x", padx=6, pady=(0, 6))
+        icon_button(
+            preview_bar,
+            "Yerleşim ayarları…",
+            "sliders",
+            self.open_layout,
+            self._icons,
+            size=12,
+            fill=C_TEAL,
+        ).pack(side="top", fill="x")
+        self.fit_note_var = tk.StringVar()
+        self.fit_note_lbl = ttk.Label(
+            preview_bar, textvariable=self.fit_note_var, wraplength=250, justify="left"
+        )
+        self.fit_note_lbl.pack(side="top", fill="x", pady=(4, 0))
+
         # Başlangıç boyutu yalnızca ilk layout için; sonra alanla ölçeklenir
         self.preview_canvas = tk.Canvas(
             tab_visual, width=260, height=220, bg="#F0F0F0", highlightthickness=0
         )
         self.preview_canvas.pack(fill="both", expand=True, padx=6, pady=6)
         self.preview_canvas.bind("<Configure>", self._on_preview_configure)
+        self.preview_canvas.bind("<Double-Button-1>", lambda _e: self.open_layout())
 
         self.preview_text = tk.Text(
             tab_tspl, width=36, height=12, font=("Consolas", 8), wrap="none"
@@ -828,8 +941,25 @@ class LabelApp(tk.Tk):
                 brand_position=self.brand_pos_var.get().strip() or "bottom",
                 barcode_type=normalize_barcode_type(self.barcode_type_var.get()),
                 ak_barcode_type=normalize_barcode_type(self.ak_barcode_type_var.get()),
+                font_brand=int(self.font_brand_var.get()),
+                barcode_narrow=max(1, min(6, int(_num(self.narrow_var)))),
+                margin_mm=max(0.0, _num(self.margin_var)),
+                gap_after_barcode_mm=max(0.0, _num(self.gap_after_bc_var)),
+                gap_between_barcodes_mm=max(0.0, _num(self.gap_barcodes_var)),
+                gap_after_text_mm=max(0.0, _num(self.gap_text_var)),
+                offset_x_mm=_num(self.offset_x_var),
+                offset_y_mm=_num(self.offset_y_var),
+                max_text_lines=max(1, min(4, int(_num(self.max_lines_var)))),
+                show_main_text=bool(self.show_main_text_var.get()),
+                show_ak=bool(self.show_ak_var.get()),
+                show_ak_text=bool(self.show_ak_text_var.get()),
+                show_item=bool(self.show_item_var.get()),
+                show_parca=bool(self.show_parca_var.get()),
+                auto_fit=bool(self.auto_fit_var.get()),
+                ak_position=self.ak_pos_var.get() or "below",
+                text_mode=self.text_mode_var.get() or "graphic",
             )
-        except ValueError as exc:
+        except (ValueError, tk.TclError) as exc:
             raise ValueError("Boyut / font / kopya alanları sayı olmalı.") from exc
 
     def persist_settings(self) -> None:
@@ -864,6 +994,7 @@ class LabelApp(tk.Tk):
                 "gap_after_text_mm": s.gap_after_text_mm,
                 "gap_between_barcodes_mm": s.gap_between_barcodes_mm,
                 "margin_mm": s.margin_mm,
+                **{key: getattr(s, key) for key in LAYOUT_DEFAULTS},
                 "excel_columns": self.column_headers.as_dict(),
             }
         )
@@ -918,6 +1049,19 @@ class LabelApp(tk.Tk):
     def _refresh_preview(self) -> None:
         if self._current_label is not None:
             self._show_preview(self._current_label)
+        if self._layout_dialog is not None:
+            self._layout_dialog.refresh()
+
+    def preview_label(self) -> LabelData:
+        """Yerleşim penceresinde gösterilecek etiket (seçili yoksa örnek)."""
+        return self._current_label or TEST_SAMPLE_LABEL
+
+    def open_layout(self) -> None:
+        if self._layout_dialog is not None and self._layout_dialog.winfo_exists():
+            self._layout_dialog.lift()
+            self._layout_dialog.focus_force()
+            return
+        self._layout_dialog = LayoutDialog(self)
 
     def _show_preview(self, label: LabelData) -> None:
         self._current_label = label
@@ -927,14 +1071,19 @@ class LabelApp(tk.Tk):
             return
 
         cw, ch = self._preview_canvas_size()
-        # Kenar boşluğu bırak; kısa kenara göre ölçekle
-        max_side = max(64, min(cw, ch) - 12)
 
         self.preview_canvas.delete("all")
         try:
-            photo, _ = render_label_photoimage(label, settings, max_side=max_side)
+            photo, _ = render_label_photoimage(
+                label, settings, max_size=(max(64, cw - 12), max(64, ch - 12))
+            )
             self._preview_photo = photo
             self.preview_canvas.create_image(cw // 2, ch // 2, image=photo)
+            layout = compute_layout(label, settings)
+            self.fit_note_var.set(layout.fit_note)
+            self.fit_note_lbl.configure(
+                foreground="#D93025" if layout.overflow else C_WARN
+            )
         except Exception as exc:
             self.preview_canvas.create_text(
                 cw // 2,
@@ -989,6 +1138,21 @@ class LabelApp(tk.Tk):
             return
         try:
             settings = self.settings_from_ui()
+        except ValueError as exc:
+            messagebox.showerror("Ayar", str(exc))
+            return
+        bad = next(
+            (lab for lab in labels[:200] if compute_layout(lab, settings).overflow),
+            None,
+        )
+        if bad is not None and not messagebox.askyesno(
+            "Etikete sığmıyor",
+            f"En az bir etiket ({bad.barkod}) kağıda sığmıyor; bazı alanlar "
+            "kesilebilir.\n\n“Yerleşim ayarları” ile düzeltebilirsiniz.\n"
+            "Yine de basılsın mı?",
+        ):
+            return
+        try:
             payload = build_batch_tspl(labels, settings)
             send_raw(printer, payload, job_name=job_name)
         except Exception as exc:
@@ -1027,6 +1191,109 @@ class LabelApp(tk.Tk):
             f"Marka: {TEST_SAMPLE_BRAND}\n"
             f"Font: Orta ({TEST_SAMPLE_FONT})",
         )
+
+    # ── Güncelleme ───────────────────────────────────────────────────
+
+    def _build_update_banner(self) -> None:
+        bg = "#FFF4D6"
+        self._update_banner = tk.Frame(self, bg=bg)
+        inner = tk.Frame(self._update_banner, bg=bg)
+        inner.pack(fill="x", padx=14, pady=6)
+        ic = self._icons.get("cloud-arrow-down", size=14, fill=C_WARN)
+        if ic is not None:
+            tk.Label(inner, image=ic, bg=bg).pack(side="left", padx=(0, 6))
+        self._update_text = tk.StringVar()
+        tk.Label(
+            inner,
+            textvariable=self._update_text,
+            bg=bg,
+            fg="#5C4A12",
+            font=("Segoe UI Semibold", 10),
+        ).pack(side="left")
+        ttk.Button(inner, text="Kapat", command=self._update_banner.pack_forget).pack(
+            side="right"
+        )
+        ttk.Button(inner, text="Güncelle…", command=self._show_update_dialog).pack(
+            side="right", padx=6
+        )
+
+    def check_updates(self, silent: bool) -> None:
+        """GitHub'da yeni sürüm var mı? Ağ işi arka planda; sonuç ana döngüde."""
+        if self._update_result == "pending":
+            return
+        self._update_result = "pending"
+        if not silent:
+            self.status_var.set("Güncellemeler denetleniyor…")
+
+        def work() -> None:
+            try:
+                self._update_result = ("ok", check_latest())
+            except Exception as exc:
+                self._update_result = ("err", exc)
+
+        threading.Thread(target=work, daemon=True).start()
+        self.after(300, lambda: self._poll_update(silent))
+
+    def _poll_update(self, silent: bool) -> None:
+        result = self._update_result
+        if result == "pending":
+            self.after(300, lambda: self._poll_update(silent))
+            return
+        self._update_result = None
+        kind, value = result  # type: ignore[misc]
+        if kind == "err":
+            if not silent:
+                self.status_var.set("")
+                messagebox.showwarning(
+                    "Güncelleme",
+                    f"Güncelleme sunucusuna ulaşılamadı.\n{value}",
+                    parent=self,
+                )
+            return
+        info = value
+        if info is None:
+            if not silent:
+                self.status_var.set("")
+                messagebox.showinfo(
+                    "Güncelleme",
+                    f"En güncel sürümü kullanıyorsunuz (v{current_version()}).",
+                    parent=self,
+                )
+            return
+        self._update_info = info
+        self._update_text.set(
+            f"Güncelleme geldi: v{info.version} hazır  "
+            f"(kullandığınız: v{current_version()})"
+        )
+        self._update_banner.pack(side="top", fill="x", after=self._header_sep)
+        if not silent or self.cfg.get("update_skip_version") != info.version:
+            self._show_update_dialog()
+
+    def _show_update_dialog(self) -> None:
+        if self._update_info is None:
+            return
+        if self._update_dialog is not None and self._update_dialog.winfo_exists():
+            self._update_dialog.lift()
+            return
+        self._update_dialog = UpdateDialog(
+            self,
+            self._update_info,
+            on_skip=self._skip_update,
+            on_ready_to_quit=self._quit_for_update,
+        )
+
+    def _skip_update(self, version: str) -> None:
+        self.cfg["update_skip_version"] = version
+        save_config(self.cfg)
+        self._update_banner.pack_forget()
+
+    def _quit_for_update(self) -> None:
+        """Güncelleyici bu sürecin kapanmasını bekliyor."""
+        try:
+            self.persist_settings()
+        except Exception:
+            pass
+        self.destroy()
 
     def print_selected(self) -> None:
         self._print_labels(self._selected_labels(), "Barkod Selected")
