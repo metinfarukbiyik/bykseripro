@@ -22,12 +22,14 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+from paths import PROJECT_ROOT
 from branding import (
     APP_DISPLAY,
     APP_REG_ID,
     APP_SHORT,
     EXE_NAME,
     PUBLISHER,
+    PRODUCT_PAGE,
     PUBLISHER_FOLDER,
     SHORTCUT_NAME,
     SUPPORT_VENDOR,
@@ -49,7 +51,7 @@ USER_FILE_SUFFIXES = {".json", ".xlsx", ".xlsm", ".xls"}
 
 
 def _version() -> str:
-    for base in (_bundle_dir(), Path(__file__).resolve().parent):
+    for base in (_bundle_dir(), PROJECT_ROOT):
         p = base / "VERSION"
         if p.exists():
             return p.read_text(encoding="utf-8").strip() or "1.1.1"
@@ -59,7 +61,7 @@ def _version() -> str:
 def _bundle_dir() -> Path:
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         return Path(sys._MEIPASS)
-    return Path(__file__).resolve().parent
+    return PROJECT_ROOT
 
 
 def _default_user_root() -> Path:
@@ -146,6 +148,7 @@ def _find_payload_zip() -> Path | None:
     for candidate in (
         here / "payload.zip",
         here / f"{APP_SHORT}.zip",
+        here.parent / "payload.zip",  # kaynakta: src/ → proje kökü
         here.parent / "dist" / "payload.zip",
     ):
         if candidate.exists():
@@ -319,7 +322,7 @@ def _register_add_remove_programs(dest: Path) -> str:
             f'"{uninst}" /S',
         )
         winreg.SetValueEx(key, "InstallSource", 0, winreg.REG_SZ, PUBLISHER)
-        winreg.SetValueEx(key, "URLInfoAbout", 0, winreg.REG_SZ, "https://biyik.dev")
+        winreg.SetValueEx(key, "URLInfoAbout", 0, winreg.REG_SZ, PRODUCT_PAGE)
         winreg.SetValueEx(key, "NoModify", 0, winreg.REG_DWORD, 1)
         winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 1)
         winreg.SetValueEx(key, "EstimatedSize", 0, winreg.REG_DWORD, int(size_kb))

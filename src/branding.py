@@ -34,5 +34,5 @@ UPDATE_ASSET_MACOS = f"{APP_SHORT}_macOS.zip"
 LABEL_CREDIT = f"{APP_DISPLAY} · biyik.dev"
 
 # Ürün / indirme sayfası (Mac + Windows sürümleri)
-PRODUCT_PAGE = "https://biyik.dev/seri-baski-pro"
-PRODUCT_PAGE_LABEL = "biyik.dev/seri-baski-pro"
+PRODUCT_PAGE = "https://biyik.dev/byk-seri-baski-pro"
+PRODUCT_PAGE_LABEL = "biyik.dev/byk-seri-baski-pro"

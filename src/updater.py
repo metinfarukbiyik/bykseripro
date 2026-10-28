@@ -34,7 +34,7 @@ from branding import (
     UPDATE_ASSET_MACOS,
     UPDATE_ASSET_WINDOWS,
 )
-from paths import is_frozen, is_macos, is_windows, resource_dir
+from paths import PROJECT_ROOT, is_frozen, is_macos, is_windows, resource_dir
 
 API_LATEST = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{GITHUB_REPO}/releases/latest"
@@ -53,7 +53,7 @@ class ReleaseInfo:
 
 
 def current_version() -> str:
-    for base in (resource_dir(), Path(__file__).resolve().parent):
+    for base in (resource_dir(), PROJECT_ROOT):
         p = base / "VERSION"
         if p.is_file():
             ver = p.read_text(encoding="utf-8").strip()
@@ -113,12 +113,15 @@ def release_highlights(notes: str, limit: int = 12) -> list[str]:
     for raw in (notes or "").splitlines():
         line = raw.strip()
         if line.startswith("#"):
-            in_section = line.lstrip("#").strip().lower() in {"yenilikler", "neler yeni"}
+            title = line.lstrip("#").strip().lower()
+            in_section = "yenilik" in title or "neler yeni" in title
             continue
         if in_section and line[:2] in {"- ", "* "}:
             text = line[2:].strip().replace("**", "")
             if text:
-                items.append(text[0].upper() + text[1:])
+                # Türkçe büyük harf: i → İ, ı → I
+                first = {"i": "İ", "ı": "I"}.get(text[0], text[0].upper())
+                items.append(first + text[1:])
     return items[:limit]
 
 
