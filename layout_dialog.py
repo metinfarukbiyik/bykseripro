@@ -12,7 +12,7 @@ from tkinter import ttk
 from typing import TYPE_CHECKING
 
 from label_preview import render_label_photoimage
-from tspl_builder import AK_POSITIONS, FONT_SIZE_LABELS, TEXT_MODES, compute_layout
+from tspl_builder import AK_POSITIONS, TEXT_MODES, compute_layout
 from ui_icons import C_GOLD, C_NAVY, C_TEAL, icon_button, icon_labelframe
 
 if TYPE_CHECKING:
@@ -153,19 +153,6 @@ class LayoutDialog(tk.Toplevel):
 
         mode.bind("<<ComboboxSelected>>", on_mode)
         self._mode_combo = mode
-        ttk.Label(arr, text="Marka fontu:").grid(row=4, column=0, sticky="e", **pad)
-        brand = ttk.Combobox(
-            arr,
-            values=[f"{k} — {v}" for k, v in FONT_SIZE_LABELS.items()],
-            state="readonly",
-            width=14,
-        )
-        brand.set(f"{a.font_brand_var.get()} — {FONT_SIZE_LABELS.get(a.font_brand_var.get(), '')}")
-        brand.grid(row=4, column=1, columnspan=2, sticky="w", **pad)
-        brand.bind(
-            "<<ComboboxSelected>>",
-            lambda _e: a.font_brand_var.set(int(brand.get().split("—", 1)[0].strip() or 1)),
-        )
 
         gaps = icon_labelframe(parent, "Boşluklar (mm)", "arrows-up-down", a._icons, fill=C_NAVY)
         gaps.pack(fill="x", pady=6)

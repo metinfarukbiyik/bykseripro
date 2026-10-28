@@ -14,7 +14,9 @@ font küçültülerek yerleştirilir.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from branding import LABEL_CREDIT
 
 from text_render import (
     graphic_text_width,
@@ -41,6 +43,13 @@ FONT_SIZE_LABELS = {
 BRAND_POSITIONS = {
     "top": "Üst",
     "bottom": "Alt",
+}
+
+BRAND_STYLES = {
+    "plain": "Düz",
+    "box": "Çerçeveli",
+    "inverse": "Ters (siyah bant)",
+    "lines": "Üst-alt çizgili",
 }
 
 AK_POSITIONS = {
@@ -130,8 +139,10 @@ class LabelSettings:
     font_item: int = 3
     font_brand: int = 1
     # Markalama damgası
+    brand_enabled: bool = True
     brand_text: str = ""
     brand_position: str = "bottom"  # top | bottom
+    brand_style: str = "plain"  # plain | box | inverse | lines
     gap_after_barcode_mm: float = 1.5
     gap_after_text_mm: float = 2.5
     gap_between_barcodes_mm: float = 4.0
@@ -180,8 +191,20 @@ class LayoutText:
     y_mul: int
     width: int
     height: int
-    kind: str = "content"  # content | brand
+    kind: str = "content"  # content | brand | credit
     mode: str = "printer"  # printer (TEXT) | graphic (BITMAP)
+
+
+@dataclass
+class LayoutShape:
+    """Marka tasarımı için şekil: box (çerçeve) | bar (dolu) | reverse (ters çevir)."""
+
+    kind: str
+    x: int
+    y: int
+    width: int
+    height: int
+    thickness: int = 2
 
 
 @dataclass
@@ -193,6 +216,7 @@ class LabelLayout:
     overflow: bool = False
     fit_note: str = ""
     margin: int = 0
+    shapes: list[LayoutShape] = field(default_factory=list)
 
 
 def _escape(text: str) -> str:
@@ -376,6 +400,67 @@ def _text_block(
     return out, y
 
 
+def _credit_line(max_w: int, mode: str) -> tuple[list[LayoutText], int]:
+    """Program imzası — küçük, tek satır."""
+    if mode == "graphic":
+        lh = 16
+        measure = _measurer(mode, "G", 1, lh)
+        font = "G"
+    else:
+        font = "2"
+        lh = _text_height(font, 1)
+        measure = _measurer(mode, font, 1, lh)
+    text = truncate_to_width(LABEL_CREDIT, max_w, measure)
+    line = LayoutText(
+        text=text, x=0, y=0, font=font, x_mul=1, y_mul=1,
+        width=measure(text), height=lh, kind="credit", mode=mode,
+    )
+    return [line], lh
+
+
+def _brand_block(
+    text: str, max_w: int, level: int, mode: str, max_lines: int, style: str, dpm: float
+) -> tuple[list[LayoutText], list[LayoutShape], int]:
+    """
+    Marka metni + tasarım şekilleri. x'ler merkeze göre sonra atanır
+    (şekillerde x = -genişlik/2 göreli tutulur), y'ler bloğa göreli.
+    """
+    framed = style in {"box", "inverse", "lines"}
+    pad_y = int(round(1.0 * dpm)) if framed else 0
+    pad_x = int(round(2.0 * dpm)) if style == "box" else 0
+    thick = max(2, int(round(0.3 * dpm)))
+    lines, text_h = _text_block(
+        text, max(40, max_w - 2 * pad_x - 2 * thick), level, mode, max_lines, kind="brand"
+    )
+    for t in lines:
+        t.y += pad_y
+    block_h = text_h + 2 * pad_y
+    shapes: list[LayoutShape] = []
+    if style == "box":
+        bw = min(max_w, max(t.width for t in lines) + 2 * pad_x)
+        shapes.append(LayoutShape("box", -(bw // 2), 0, bw, block_h, thick))
+    elif style == "inverse":
+        shapes.append(LayoutShape("reverse", -(max_w // 2), 0, max_w, block_h))
+    elif style == "lines":
+        shapes.append(LayoutShape("bar", -(max_w // 2), 0, max_w, thick))
+        shapes.append(LayoutShape("bar", -(max_w // 2), block_h - thick, max_w, thick))
+    return lines, shapes, block_h
+
+
+def _place_centered(
+    lines: list[LayoutText], shapes: list[LayoutShape], cx: int, y0: int,
+    out_tx: list, out_sh: list,
+) -> None:
+    for t in lines:
+        t.x = max(0, cx - t.width // 2)
+        t.y += y0
+        out_tx.append(t)
+    for sh in shapes:
+        sh.x = max(0, cx + sh.x)
+        sh.y += y0
+        out_sh.append(sh)
+
+
 # ── Yerleşim ─────────────────────────────────────────────────────────
 
 
@@ -467,7 +552,8 @@ def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
     ak = _norm(label.ak_barkod) if s.show_ak else ""
     item = _norm(label.item_no) if s.show_item else ""
     parca = _norm(label.parca_ad) if s.show_parca else ""
-    brand = _norm(s.brand_text)
+    brand = _norm(s.brand_text) if s.brand_enabled else ""
+    brand_style = s.brand_style if s.brand_style in BRAND_STYLES else "plain"
     brand_pos = (s.brand_position or "bottom").lower()
     if brand_pos not in BRAND_POSITIONS:
         brand_pos = "bottom"
@@ -482,15 +568,18 @@ def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
         qr_ecc = "M"
     qr_cell_pref = int(getattr(s, "qr_cell", 4) or 0)
 
-    # Marka (sığdırmadan etkilenmez; kenara sabit)
+    # Program imzası (her zaman en üstte) + marka (kenara sabit, sığdırmadan etkilenmez)
+    credit_lines, credit_h = _credit_line(max_w, mode)
+    credit_block = credit_h + int(round(1.0 * dpm))
     brand_lines: list[LayoutText] = []
+    brand_shapes: list[LayoutShape] = []
     brand_h = 0
     if brand:
-        brand_lines, brand_h = _text_block(
-            brand, max_w, s.font_brand, mode, max_lines, kind="brand"
+        brand_lines, brand_shapes, brand_h = _brand_block(
+            brand, max_w, s.font_brand, mode, max_lines, brand_style, dpm
         )
     brand_block = brand_h + int(round(2.0 * dpm)) if brand_lines else 0
-    top_reserve = margin + (brand_block if brand_pos == "top" else 0)
+    top_reserve = margin + credit_block + (brand_block if brand_pos == "top" else 0)
     bottom_reserve = margin + (brand_block if brand_pos == "bottom" else 0)
     usable = max(0, h - top_reserve - bottom_reserve)
     min_bc = int(round(4.0 * dpm))
@@ -554,14 +643,13 @@ def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
 
     barcodes: list[LayoutBarcode] = []
     texts: list[LayoutText] = []
+    shapes: list[LayoutShape] = []
     cx = w // 2
     y = top_reserve + max(0, (usable - content_h) // 2)
 
+    _place_centered(credit_lines, [], cx, margin, texts, shapes)
     if brand_lines and brand_pos == "top":
-        for t in brand_lines:
-            t.x = max(0, cx - t.width // 2)
-            t.y += margin
-            texts.append(t)
+        _place_centered(brand_lines, brand_shapes, cx, margin + credit_block, texts, shapes)
 
     if ak_col and side_by_side:
         off = (col_w + col_gap) // 2
@@ -583,17 +671,13 @@ def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
         y += block_h
 
     if brand_lines and brand_pos == "bottom":
-        y0 = h - margin - brand_h
-        for t in brand_lines:
-            t.x = max(0, cx - t.width // 2)
-            t.y += y0
-            texts.append(t)
+        _place_centered(brand_lines, brand_shapes, cx, h - margin - brand_h, texts, shapes)
 
     # Yazıcı kalibrasyon kaydırması
     ox = int(round(s.offset_x_mm * dpm))
     oy = int(round(s.offset_y_mm * dpm))
     if ox or oy:
-        for obj in (*barcodes, *texts):
+        for obj in (*barcodes, *texts, *shapes):
             obj.x = max(0, obj.x + ox)
             obj.y = max(0, obj.y + oy)
 
@@ -620,6 +704,7 @@ def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
         overflow=overflow or main_col.too_wide or bool(ak_col and ak_col.too_wide),
         fit_note="\n".join(notes),
         margin=margin,
+        shapes=shapes,
     )
 
 
@@ -664,6 +749,17 @@ def _command_parts(
             parts.append(
                 f'TEXT {t.x},{t.y},"{t.font}",0,{t.x_mul},{t.y_mul},"{t.text}"'
             )
+
+    # Şekiller metinden sonra: REVERSE altındaki yazıyı beyaza çevirir
+    for sh in layout.shapes:
+        if sh.kind == "box":
+            parts.append(
+                f"BOX {sh.x},{sh.y},{sh.x + sh.width},{sh.y + sh.height},{sh.thickness}"
+            )
+        elif sh.kind == "bar":
+            parts.append(f"BAR {sh.x},{sh.y},{sh.width},{sh.height}")
+        elif sh.kind == "reverse":
+            parts.append(f"REVERSE {sh.x},{sh.y},{sh.width},{sh.height}")
 
     parts.append(f"PRINT {settings.copies},1")
     return parts
@@ -716,8 +812,12 @@ def describe_layout(label: LabelData, settings: LabelSettings | None = None) -> 
         rows.append(f"[ItemNo] {label.item_no}")
     if _norm(label.parca_ad):
         rows.append(f"[Parça]  {label.parca_ad}")
-    if _norm(s.brand_text):
-        rows.append(f"[Marka]  {s.brand_text} ({s.brand_position})")
+    rows.append(f"[İmza]   {LABEL_CREDIT}")
+    if s.brand_enabled and _norm(s.brand_text):
+        rows.append(
+            f"[Marka]  {s.brand_text} ({s.brand_position}, "
+            f"{BRAND_STYLES.get(s.brand_style, s.brand_style)})"
+        )
     note = compute_layout(label, s).fit_note
     if note:
         rows.append(f"[Not]    {note}")

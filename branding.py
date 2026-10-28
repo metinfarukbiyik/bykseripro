@@ -29,3 +29,6 @@ RELEASE_PREFIX = APP_SHORT
 GITHUB_REPO = "metinfarukbiyik/bykseripro"
 UPDATE_ASSET_WINDOWS = f"{APP_SHORT}_Kurulum.zip"
 UPDATE_ASSET_MACOS = f"{APP_SHORT}_macOS.zip"
+
+# Her etiketin üstüne basılan program imzası (kapatılamaz)
+LABEL_CREDIT = f"{APP_DISPLAY} · biyik.dev"

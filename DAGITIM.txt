@@ -15,12 +15,13 @@
 
 GitHub Actions (otomatik Mac + Windows paket)
 ---------------------------------------------
-  1) Projeyi GitHub’a push et
-  2) Sürüm etiketi at:
-       git tag v1.2.0
-       git push origin v1.2.0
-  3) Actions → “Release packages” çalışır
-  4) Repo → Releases → zip’leri indir
+  Tam otomatik — tag / sürüm artırma gerekmez:
+  1) Değişiklikleri main’e push et
+  2) Actions → “Release packages” sürümü otomatik belirler
+       (son tag v1.2.0 → v1.2.1 …), Windows + macOS paketlerini derler
+  3) Release “latest” olarak yayınlanır (~10–15 dk)
+  Büyük sürüm atlamak için (ör. 1.3.0) yalnız VERSION dosyasını değiştir.
+  Yalnız doküman (README, *.md, DAGITIM.txt) değişen push sürüm üretmez.
 
   Kullanıcı indirme (kalıcı — site butonları, giriş gerekmez):
     https://github.com/metinfarukbiyik/bykseripro/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip
@@ -34,7 +35,7 @@ GitHub Actions (otomatik Mac + Windows paket)
     Program açılışta GitHub “latest” sürümünü sorgular. Yeni sürüm varsa
     “Güncelleme geldi” bildirimi çıkar; “Şimdi güncelle” paketi indirir,
     uygulamayı kapatır, aynı klasöre kurar ve yeniden açar
-    (config.json / Excel korunur). Yeni sürüm = VERSION’ı artır + yeni etiket.
+    (config.json / Excel korunur). Her main push’u yeni sürüm olur.
     Not: v1.1.1 ve öncesi bu özelliği içermez; bir kez elle güncellenmeli.
 
   Actions (geliştirici):

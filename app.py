@@ -25,7 +25,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from about_dialog import open_about
 from app_icon import apply_app_icon
-from branding import APP_DISPLAY, APP_TITLE
+from branding import APP_DISPLAY, APP_TITLE, LABEL_CREDIT
 from excel_loader import ColumnHeaders, load_labels_from_excel
 from help_dialog import open_help
 from label_preview import render_label_photoimage
@@ -37,6 +37,7 @@ from splash import show_splash
 from tspl_builder import (
     BARCODE_TYPES,
     BRAND_POSITIONS,
+    BRAND_STYLES,
     FONT_SIZE_LABELS,
     LabelData,
     LabelSettings,
@@ -141,6 +142,11 @@ LAYOUT_DEFAULTS: dict[str, object] = {
 }
 
 
+def _brand_enabled(cfg: dict) -> bool:
+    # Eski config: anahtar yoksa metin doluysa açık say
+    return bool(cfg.get("brand_enabled", bool(cfg.get("brand_text"))))
+
+
 def settings_from_config(cfg: dict, **overrides) -> LabelSettings:
     return LabelSettings(
         width_mm=float(overrides.get("width_mm", cfg.get("label_width_mm", 98))),
@@ -182,6 +188,8 @@ def settings_from_config(cfg: dict, **overrides) -> LabelSettings:
         brand_position=str(
             overrides.get("brand_position", cfg.get("brand_position", "bottom"))
         ),
+        brand_enabled=bool(overrides.get("brand_enabled", _brand_enabled(cfg))),
+        brand_style=str(overrides.get("brand_style", cfg.get("brand_style", "plain"))),
         barcode_narrow=int(overrides.get("barcode_narrow", cfg.get("barcode_narrow", 3))),
         gap_after_barcode_mm=float(
             overrides.get("gap_after_barcode_mm", cfg.get("gap_after_barcode_mm", 1.5))
@@ -265,6 +273,11 @@ class LabelApp(tk.Tk):
         self.brand_pos_var = tk.StringVar(
             value=str(self.cfg.get("brand_position", "bottom"))
         )
+        self.brand_enabled_var = tk.BooleanVar(value=_brand_enabled(self.cfg))
+        self.brand_style_var = tk.StringVar(
+            value=str(self.cfg.get("brand_style", "plain"))
+        )
+        self.font_brand_var = tk.IntVar(value=int(self.cfg.get("font_brand", 1)))
         self.barcode_type_var = tk.StringVar(
             value=normalize_barcode_type(self.cfg.get("barcode_type", "128"))
         )
@@ -316,14 +329,13 @@ class LabelApp(tk.Tk):
             "gap_after_text_mm", c.get("gap_between_lines_mm", 2.5)
         )
         self.narrow_var = svar("barcode_narrow", 3)
-        self.font_brand_var = tk.IntVar(value=int(c.get("font_brand", 1)))
         for var in (
             self.show_main_text_var, self.show_ak_var, self.show_ak_text_var,
             self.show_item_var, self.show_parca_var, self.auto_fit_var,
             self.ak_pos_var, self.text_mode_var, self.max_lines_var,
             self.offset_x_var, self.offset_y_var, self.margin_var,
             self.gap_after_bc_var, self.gap_barcodes_var, self.gap_text_var,
-            self.narrow_var, self.font_brand_var,
+            self.narrow_var,
         ):
             var.trace_add("write", lambda *_: self._refresh_preview())
 
@@ -601,15 +613,20 @@ class LabelApp(tk.Tk):
         )
         brand.pack(side="top", fill="x", padx=10, pady=4)
 
-        ttk.Label(brand, text="Marka metni:").grid(row=0, column=0, sticky="e", **pad)
-        brand_entry = ttk.Entry(brand, textvariable=self.brand_text_var, width=28)
-        brand_entry.grid(row=0, column=1, sticky="w", **pad)
+        ttk.Checkbutton(
+            brand,
+            text="Marka bas",
+            variable=self.brand_enabled_var,
+            command=self._on_brand_toggle,
+        ).grid(row=0, column=0, sticky="w", **pad)
+        self.brand_entry = ttk.Entry(brand, textvariable=self.brand_text_var, width=26)
+        self.brand_entry.grid(row=0, column=1, sticky="w", **pad)
         self.brand_text_var.trace_add("write", lambda *_: self._refresh_preview())
 
         ttk.Label(brand, text="Konum:").grid(row=0, column=2, sticky="e", **pad)
         pos_values = [f"{k} — {v}" for k, v in BRAND_POSITIONS.items()]
         self.brand_pos_combo = ttk.Combobox(
-            brand, values=pos_values, state="readonly", width=12
+            brand, values=pos_values, state="readonly", width=10
         )
         cur_pos = self.brand_pos_var.get()
         self.brand_pos_combo.set(
@@ -618,10 +635,29 @@ class LabelApp(tk.Tk):
         self.brand_pos_combo.grid(row=0, column=3, sticky="w", **pad)
         self.brand_pos_combo.bind("<<ComboboxSelected>>", self._on_brand_pos_change)
 
+        ttk.Label(brand, text="Boyut:").grid(row=0, column=4, sticky="e", **pad)
+        self.brand_font_combo = self._make_font_combo(brand, self.font_brand_var, 0, 5)
+
+        ttk.Label(brand, text="Stil:").grid(row=0, column=6, sticky="e", **pad)
+        self.brand_style_combo = ttk.Combobox(
+            brand,
+            values=[f"{k} — {v}" for k, v in BRAND_STYLES.items()],
+            state="readonly",
+            width=20,
+        )
+        cur_style = self.brand_style_var.get()
+        self.brand_style_combo.set(
+            f"{cur_style} — {BRAND_STYLES.get(cur_style, BRAND_STYLES['plain'])}"
+        )
+        self.brand_style_combo.grid(row=0, column=7, sticky="w", **pad)
+        self.brand_style_combo.bind("<<ComboboxSelected>>", self._on_brand_style_change)
+
         ttk.Label(
             brand,
-            text="Boş bırakılırsa damga basılmaz. Üst veya alt kenara ortalı yazılır.",
-        ).grid(row=0, column=4, columnspan=2, sticky="w", **pad)
+            text=f"Etiketin üstünde her zaman: “{LABEL_CREDIT}”",
+            foreground=C_MUTED,
+        ).grid(row=1, column=0, columnspan=8, sticky="w", **pad)
+        self._on_brand_toggle()
 
         body = ttk.Frame(self)
         body.pack(side="top", fill="both", expand=True, padx=10, pady=(4, 4))
@@ -759,6 +795,19 @@ class LabelApp(tk.Tk):
         self.preview_text.delete("1.0", "end")
         self._preview_photo = None
         self.status_var.set("Etiket listesi temizlendi.")
+
+    def _on_brand_toggle(self) -> None:
+        """Marka kapalıyken metin ve tasarım alanları pasif."""
+        on = bool(self.brand_enabled_var.get())
+        self.brand_entry.configure(state="normal" if on else "disabled")
+        for combo in (self.brand_pos_combo, self.brand_font_combo, self.brand_style_combo):
+            combo.configure(state="readonly" if on else "disabled")
+        self._refresh_preview()
+
+    def _on_brand_style_change(self, _event=None) -> None:
+        raw = (self.brand_style_combo.get() or "plain").split("—", 1)[0].strip()
+        self.brand_style_var.set(raw if raw in BRAND_STYLES else "plain")
+        self._refresh_preview()
 
     def _on_brand_pos_change(self, _event=None) -> None:
         raw = (self.brand_pos_combo.get() or "bottom").split("—", 1)[0].strip().lower()
@@ -939,6 +988,8 @@ class LabelApp(tk.Tk):
                 font_item=int(self.font_item_var.get()),
                 brand_text=self.brand_text_var.get().strip(),
                 brand_position=self.brand_pos_var.get().strip() or "bottom",
+                brand_enabled=bool(self.brand_enabled_var.get()),
+                brand_style=self.brand_style_var.get() or "plain",
                 barcode_type=normalize_barcode_type(self.barcode_type_var.get()),
                 ak_barcode_type=normalize_barcode_type(self.ak_barcode_type_var.get()),
                 font_brand=int(self.font_brand_var.get()),
@@ -984,6 +1035,8 @@ class LabelApp(tk.Tk):
                 "font_brand": s.font_brand,
                 "brand_text": s.brand_text,
                 "brand_position": s.brand_position,
+                "brand_enabled": s.brand_enabled,
+                "brand_style": s.brand_style,
                 "barcode_type": s.barcode_type,
                 "ak_barcode_type": s.ak_barcode_type,
                 "qr_ecc": s.qr_ecc,
@@ -1175,6 +1228,7 @@ class LabelApp(tk.Tk):
             settings.font_ak = TEST_SAMPLE_FONT
             settings.font_item = TEST_SAMPLE_FONT
             settings.brand_text = TEST_SAMPLE_BRAND
+            settings.brand_enabled = True
             settings.brand_position = TEST_SAMPLE_BRAND_POS
             settings.copies = 1
             payload = build_batch_tspl([TEST_SAMPLE_LABEL], settings)

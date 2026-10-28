@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from io import BytesIO
 
-from PIL import Image, ImageDraw, ImageTk
+from PIL import Image, ImageDraw, ImageOps, ImageTk
 
 from text_render import render_text_image
 from tspl_builder import (
@@ -137,9 +137,18 @@ def render_label_image(label: LabelData, settings: LabelSettings) -> Image.Image
             glyphs = render_text_image(t.text, t.height).resize(
                 (max(1, t.width), max(1, t.height)), Image.Resampling.LANCZOS
             )
-        ink = "#666666" if t.kind == "brand" else "black"
         mask = glyphs.point(lambda p: 255 - p)
-        img.paste(Image.new("RGB", glyphs.size, ink), (t.x, t.y), mask)
+        img.paste(Image.new("RGB", glyphs.size, "black"), (t.x, t.y), mask)
+
+    for sh in layout.shapes:
+        x1, y1 = sh.x + sh.width - 1, sh.y + sh.height - 1
+        if sh.kind == "box":
+            draw.rectangle([sh.x, sh.y, x1, y1], outline="black", width=sh.thickness)
+        elif sh.kind == "bar":
+            draw.rectangle([sh.x, sh.y, x1, y1], fill="black")
+        elif sh.kind == "reverse":
+            box = (sh.x, sh.y, min(w, sh.x + sh.width), min(h, sh.y + sh.height))
+            img.paste(ImageOps.invert(img.crop(box)), box[:2])
 
     border = "#D93025" if layout.overflow else "#CCCCCC"
     draw.rectangle([0, 0, w - 1, h - 1], outline=border, width=4 if layout.overflow else 2)

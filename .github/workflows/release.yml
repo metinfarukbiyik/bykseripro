@@ -1,27 +1,40 @@
-# BYK Seri Baskı Pro — Mac + Windows kurulum paketleri
+# BYK Seri Baskı Pro — Mac + Windows kurulum paketleri (tam otomatik)
 #
-# Kullanım:
-#   1) GitHub'a push et
-#   2) VERSION'ı artır, etiketi at:  git tag v1.2.0 && git push origin v1.2.0
-#      (Uygulama içi güncelleme bu etiketi "latest" olarak görür.)
-#   3) Actions build eder → Releases sayfasında zip'ler indirilebilir
+# main'e her push:
+#   1) Sürüm otomatik belirlenir (elle tag / VERSION artırma gerekmez):
+#        - Son tag v1.2.3 ise → v1.2.4
+#        - VERSION dosyası son tag'den büyükse (ör. 1.3.0) → o sürüm
+#          (büyük/küçük sürüm atlamak için yalnız VERSION'ı değiştirin)
+#   2) Windows + macOS paketleri derlenir
+#   3) Tag + Release "latest" olarak yayınlanır
+#        → site linkleri (latest/download/...) yeni sürümü indirir
+#        → kurulu uygulamalar açılışta "Güncelleme geldi" bildirimi alır
 #
-# Manuel: Actions → "Release packages" → Run workflow
+# Yalnız doküman değişen push'lar (README, *.md, DAGITIM.txt …) sürüm üretmez.
+# Elle tetikleme: Actions → "Release packages" → Run workflow
 
 name: Release packages
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - "DAGITIM.txt"
+      - "LICENSE"
+      - ".vscode/**"
+      - ".gitignore"
+      - ".gitattributes"
   workflow_dispatch:
 
 permissions:
   contents: write
 
+# Art arda push'larda sürümler çakışmasın: sırayla çalıştır
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: true
+  group: release-main
+  cancel-in-progress: false
 
 env:
   PYTHON_VERSION: "3.12"
@@ -34,22 +47,41 @@ jobs:
       tag: ${{ steps.ver.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # tüm tag'ler
+
       - id: ver
         shell: bash
         run: |
-          VER="$(tr -d '[:space:]' < VERSION)"
+          git fetch --tags --force
+          VER="$(python3 - <<'PY'
+          import re, subprocess
+
+          def parse(v):
+              n = [int(x) for x in re.findall(r"\d+", v)[:3]]
+              return tuple(n + [0] * (3 - len(n)))
+
+          base = parse(open("VERSION", encoding="utf-8").read().strip())
+          tags = subprocess.run(["git", "tag", "-l", "v*"], capture_output=True, text=True).stdout.split()
+          known = [parse(t) for t in tags if re.fullmatch(r"v\d+\.\d+\.\d+", t)]
+          latest = max(known, default=(0, 0, 0))
+          ver = base if base > latest else (latest[0], latest[1], latest[2] + 1)
+          print(".".join(map(str, ver)))
+          PY
+          )"
+          echo "Sürüm: ${VER}"
           echo "ver=${VER}" >> "$GITHUB_OUTPUT"
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=v${VER}" >> "$GITHUB_OUTPUT"
-          fi
+          echo "tag=v${VER}" >> "$GITHUB_OUTPUT"
 
   windows:
     needs: version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Sürümü yaz
+        shell: bash
+        run: echo "${{ needs.version.outputs.ver }}" > VERSION
 
       - uses: actions/setup-python@v5
         with:
@@ -113,6 +145,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Sürümü yaz
+        run: echo "${{ needs.version.outputs.ver }}" > VERSION
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -158,10 +193,10 @@ jobs:
           ls -la dist-upload
 
       - name: GitHub Release
-        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           name: BYK Seri Baskı Pro ${{ needs.version.outputs.ver }}
           make_latest: true
           generate_release_notes: true
@@ -191,9 +226,3 @@ jobs:
           draft: false
           prerelease: false
           fail_on_unmatched_files: true
-
-      - uses: actions/upload-artifact@v4
-        if: github.ref_type != 'tag'
-        with:
-          name: all-packages
-          path: dist-upload/*

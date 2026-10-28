@@ -321,7 +321,12 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
         "Barkod tipi: ana ve 2. barkod için Code 128, Code 39, Code 93, EAN-13, EAN-8, QR Kod",
     )
     _bullet(s3, "Fontlar: ana barkod / 2. barkod / metin satırları ayrı boyutta")
-    _bullet(s3, "Markalama: her etikete üst veya alt damga (örn. şirket adı)")
+    _bullet(
+        s3,
+        "Markalama: “Marka bas” işaretliyse her etikete üst/alt damga; boyut ve "
+        "stil (düz, çerçeveli, ters siyah bant, üst-alt çizgili) seçilebilir",
+    )
+    _bullet(s3, "Program imzası (BYK Seri Baskı Pro · biyik.dev) her etiketin üstünde yer alır")
     _p(s3, "Liste ve önizleme", bold=True)
     _bullet(s3, "Sol liste: Excel veya seri üretim satırları")
     _bullet(s3, "Ara kutusu: listede anında filtre")
@@ -433,6 +438,7 @@ def open_help(parent: tk.Tk | tk.Toplevel, app_title: str) -> None:
     # --- 5 Yerleşim ---
     s5 = _section(body, "5. Etiket üzerindeki sıra", icons, "layer-group")
     _p(s5, "Kağıt üzerinde yukarıdan aşağı:")
+    _bullet(s5, "Program imzası (her zaman, küçük punto)")
     _bullet(s5, "Marka damgası (üst seçildiyse)")
     _bullet(s5, "Ana barkod / QR + insan okunur metin (ortalı)")
     _bullet(s5, "İkinci barkod / QR (varsa) + metni (ortalı)")
