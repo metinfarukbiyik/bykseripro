@@ -10,7 +10,7 @@
 #        → site linkleri (latest/download/...) yeni sürümü indirir
 #        → kurulu uygulamalar açılışta "Güncelleme geldi" bildirimi alır
 #
-# Yalnız doküman değişen push'lar (README, *.md, DAGITIM.txt …) sürüm üretmez.
+# Yalnız doküman değişen push'lar (README, *.md, docs/ …) sürüm üretmez.
 # Elle tetikleme: Actions → "Release packages" → Run workflow
 
 name: Release packages
@@ -21,8 +21,10 @@ on:
       - main
     paths-ignore:
       - "**.md"
-      - "DAGITIM.txt"
+      - "docs/**"
       - "LICENSE"
+      - "assets/readme/**"
+      - "tools/readme_images.py"
       - ".vscode/**"
       - ".gitignore"
       - ".gitattributes"
@@ -99,7 +101,7 @@ jobs:
 
       - name: Uygulama (exe)
         shell: bash
-        run: python -m PyInstaller --noconfirm BYKSeriBaskiPro.spec
+        run: python -m PyInstaller --noconfirm packaging/BYKSeriBaskiPro.spec
 
       - name: payload.zip
         shell: pwsh
@@ -109,7 +111,7 @@ jobs:
 
       - name: Kurulum.exe
         shell: bash
-        run: python -m PyInstaller --noconfirm Kurulum.spec
+        run: python -m PyInstaller --noconfirm packaging/Kurulum.spec
 
       - name: Release zip'leri
         shell: pwsh
@@ -121,7 +123,7 @@ jobs:
           $out = "release\BYKSeriBaskiPro_v${ver}_Kurulum"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Copy-Item "dist\BYKSeriBaskiPro_Kurulum.exe" "$out\BYKSeriBaskiPro_Kurulum.exe"
-          Copy-Item "DAGITIM.txt" "$out\OKU_BENI.txt"
+          Copy-Item "docs\DAGITIM.txt" "$out\OKU_BENI.txt"
           Copy-Item "VERSION" "$out\VERSION.txt"
           Compress-Archive -Path "$out\*" -DestinationPath "release\BYKSeriBaskiPro_v${ver}_Kurulum.zip" -Force
           Compress-Archive -Path 'dist\BYKSeriBaskiPro\*' -DestinationPath "release\BYKSeriBaskiPro_v${ver}_Portable.zip" -Force
@@ -159,8 +161,8 @@ jobs:
 
       - name: Mac .app + zip
         run: |
-          chmod +x BASLAT.sh BUILD_APP.sh BUILD_RELEASE_MAC.sh KURULUM.sh KALDIR.sh *.command
-          ./BUILD_RELEASE_MAC.sh
+          chmod +x scripts/macos/*.sh scripts/macos/*.command
+          scripts/macos/BUILD_RELEASE_MAC.sh
           VER="$(tr -d '[:space:]' < VERSION)"
           cp "release/BYKSeriBaskiPro_v${VER}_macOS.zip" "release/BYKSeriBaskiPro_macOS.zip"
 
@@ -184,34 +186,56 @@ jobs:
         env:
           VER: ${{ needs.version.outputs.ver }}
         run: |
-          # Uygulamadaki güncelleme penceresi "## Yenilikler" altındaki maddeleri gösterir.
+          # Uygulamadaki güncelleme penceresi "Yenilikler" başlığı altındaki maddeleri gösterir.
           # Her commit mesajı bir madde olur; docs:/ci:/chore: ile başlayanlar atlanır.
           PREV="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
           RANGE="${PREV:+${PREV}..}HEAD"
-          git log --no-merges --pretty='%s' "$RANGE" \
-            | grep -viE '^(docs|ci|chore|style|test)(\(.*\))?:' \
-            | sed -E 's/^(feat|fix|perf|refactor)(\(.*\))?: *//' \
-            | awk 'NF && !seen[$0]++ { print "- " $0 }' > notes.txt || true
-          [ -s notes.txt ] || echo "- Hata düzeltmeleri ve iyileştirmeler" > notes.txt
-          {
-            echo "## Yenilikler"
-            echo
-            cat notes.txt
-            echo
-            echo "## İndir"
-            echo
-            echo "Ürün sayfası: **https://biyik.dev/seri-baski-pro**"
-            echo
-            echo "| Platform | Bağlantı |"
-            echo "|---|---|"
-            echo "| **Windows** | https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/BYKSeriBaskiPro_Kurulum.zip |"
-            echo "| **macOS** | https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/BYKSeriBaskiPro_macOS.zip |"
-            echo "| Windows taşınabilir | https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/BYKSeriBaskiPro_Portable.zip |"
-            echo
-            echo "Kurulu programlar bu sürümü açılışta otomatik bildirir."
-            echo
-            echo "Sürüm: ${VER}"
-          } > release_body.md
+          git log --no-merges --pretty='%s' "$RANGE" > commits.txt || true
+          python3 - <<'PY'
+          import os, re
+
+          ver = os.environ["VER"]
+          repo = os.environ["GITHUB_REPOSITORY"]
+          page = "https://biyik.dev/byk-seri-baski-pro"
+          dl = f"https://github.com/{repo}/releases/download/v{ver}"
+
+          def tr_cap(text):
+              head = {"i": "İ", "ı": "I"}.get(text[0], text[0].upper())
+              return head + text[1:]
+
+          items = []
+          for line in open("commits.txt", encoding="utf-8"):
+              msg = line.strip()
+              if not msg or re.match(r"(?i)^(docs|ci|chore|style|test)(\(.*\))?:", msg):
+                  continue
+              msg = re.sub(r"(?i)^(feat|fix|perf|refactor)(\(.*\))?:\s*", "", msg)
+              msg = tr_cap(msg)
+              if msg not in items:
+                  items.append(msg)
+          if not items:
+              items = ["Hata düzeltmeleri ve iyileştirmeler"]
+
+          body = "\n".join([
+              "### ✨ Yenilikler",
+              "",
+              *[f"- {m}" for m in items],
+              "",
+              "### ⬇️ İndir",
+              "",
+              "| Platform | Paket |",
+              "|:--|:--|",
+              f"| 🪟 **Windows** | [Kurulum]({dl}/BYKSeriBaskiPro_Kurulum.zip) · "
+              f"[Taşınabilir]({dl}/BYKSeriBaskiPro_Portable.zip) |",
+              f"| 🍎 **macOS** | [Uygulama]({dl}/BYKSeriBaskiPro_macOS.zip) |",
+              "",
+              f"🌐 **Ürün sayfası:** [biyik.dev/byk-seri-baski-pro]({page})",
+              "",
+              "> 🔄 Programı kullananlar bu sürümü açılışta otomatik görür ve "
+              "**Şimdi güncelle** ile tek tıkla geçer. Ayarlar ve Excel dosyaları korunur.",
+              "",
+          ])
+          open("release_body.md", "w", encoding="utf-8").write(body)
+          PY
           cat release_body.md
 
       - uses: actions/download-artifact@v4
@@ -235,7 +259,7 @@ jobs:
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: BYK Seri Baskı Pro ${{ needs.version.outputs.ver }}
+          name: BYK Seri Baskı Pro v${{ needs.version.outputs.ver }}
           make_latest: true
           body_path: release_body.md
           files: |
