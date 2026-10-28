@@ -105,6 +105,25 @@ def _round_image(
     return img.resize((w, h), Image.Resampling.LANCZOS)
 
 
+def _chevron(w: int, h: int, color: str, up: bool = False, stroke: float = 1.7) -> Image.Image:
+    """İnce, yuvarlak uçlu ok (⌄ / ⌃) — kutusuz; açılır liste ve sayı kutusu için."""
+    S = _SS
+    img = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx, cy = w * S / 2, h * S / 2
+    dx, dy = w * S * 0.2, h * S * 0.16
+    if up:
+        pts = [(cx - dx, cy + dy), (cx, cy - dy), (cx + dx, cy + dy)]
+    else:
+        pts = [(cx - dx, cy - dy), (cx, cy + dy), (cx + dx, cy - dy)]
+    width = max(1, int(stroke * S))
+    d.line(pts, fill=_hex(color), width=width, joint="curve")
+    r = width / 2
+    for x, y in (pts[0], pts[2]):  # yuvarlak uçlar
+        d.ellipse([x - r, y - r, x + r, y + r], fill=_hex(color))
+    return img.resize((w, h), Image.Resampling.LANCZOS)
+
+
 def _check_image(size: int, on: bool, hover: bool, disabled: bool, radio: bool) -> Image.Image:
     S = _SS
     W = size * S
@@ -265,9 +284,32 @@ def apply_theme(root: tk.Tk) -> None:
             ]}),
         ]}),
     ])
+    # Oklar: clam'in kutulu üçgeni yerine ince chevron (Windows'ta da aynı)
+    arrow_states = {
+        name: (
+            photo(_chevron(w, h, MUTED, up)),
+            photo(_chevron(w, h, BLUE, up)),
+            photo(_chevron(w, h, "#C3CBD6", up)),
+        )
+        for name, w, h, up in (
+            ("down", 22, 16, False), ("spin_up", 16, 9, True), ("spin_down", 16, 9, False),
+        )
+    }
+    for element, key in (
+        ("Soft.downarrow", "down"),
+        ("SoftSpin.uparrow", "spin_up"),
+        ("SoftSpin.downarrow", "spin_down"),
+    ):
+        normal, hover, off = arrow_states[key]
+        style.element_create(
+            element, "image", normal,
+            ("disabled", off), ("pressed", hover), ("active", hover), ("focus", hover),
+            sticky="",
+        )
+
     style.layout("TCombobox", [
         ("Soft.field", {"sticky": "nsew", "children": [
-            ("Combobox.downarrow", {"side": "right", "sticky": "ns"}),
+            ("Soft.downarrow", {"side": "right", "sticky": ""}),
             ("Combobox.padding", {"expand": "1", "sticky": "nsew", "children": [
                 ("Combobox.textarea", {"sticky": "nsew"}),
             ]}),
@@ -276,8 +318,8 @@ def apply_theme(root: tk.Tk) -> None:
     style.layout("TSpinbox", [
         ("Soft.field", {"sticky": "nsew", "children": [
             ("null", {"side": "right", "sticky": "", "children": [
-                ("Spinbox.uparrow", {"side": "top", "sticky": "e"}),
-                ("Spinbox.downarrow", {"side": "bottom", "sticky": "e"}),
+                ("SoftSpin.uparrow", {"side": "top", "sticky": ""}),
+                ("SoftSpin.downarrow", {"side": "bottom", "sticky": ""}),
             ]}),
             ("Spinbox.padding", {"sticky": "nsew", "children": [
                 ("Spinbox.textarea", {"sticky": "nsew"}),
@@ -288,7 +330,6 @@ def apply_theme(root: tk.Tk) -> None:
         style.configure(
             name, padding=(2, 0), fieldbackground=CARD, background=CARD,
             bordercolor=CARD, lightcolor=CARD, darkcolor=CARD,
-            arrowcolor=BLUE, arrowsize=12,
         )
         style.map(name, fieldbackground=[("disabled", FIELD_DISABLED)])
     style.map(
@@ -297,7 +338,6 @@ def apply_theme(root: tk.Tk) -> None:
         # salt okunur listede seçili metin mavi dolgu almasın
         selectbackground=[("readonly", CARD)],
         selectforeground=[("readonly", TEXT)],
-        arrowcolor=[("disabled", "#B5BFCC")],
     )
     root.option_add("*TCombobox*Listbox.background", CARD)
     root.option_add("*TCombobox*Listbox.foreground", TEXT)
