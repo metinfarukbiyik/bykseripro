@@ -72,7 +72,7 @@ def icon_labelframe(
     *,
     size: int = 13,
     fill: str = C_NAVY,
-    padding: int = 4,
+    padding: int | tuple = (10, 4, 10, 8),
 ) -> ttk.LabelFrame:
     """Solunda Font Awesome ikonu olan LabelFrame."""
     frame = ttk.LabelFrame(parent, padding=padding)
@@ -80,7 +80,7 @@ def icon_labelframe(
     img = store.get(icon, size=size, fill=fill)
     if img is not None:
         ttk.Label(label, image=img).pack(side="left", padx=(0, 6))
-    title_lbl = ttk.Label(label, text=text)
+    title_lbl = ttk.Label(label, text=text, style="CardTitle.TLabel")
     title_lbl.pack(side="left")
     frame.configure(labelwidget=label)
     frame.title_label = title_lbl  # type: ignore[attr-defined]
@@ -112,40 +112,3 @@ def titled_label(
         lbl_kw["bg"] = bg
     tk.Label(row, **lbl_kw).pack(side="left")
     return row
-
-
-# Barkod çizgi deseni (göreli genişlik, boşluk) — marka işareti için
-_MARK_BARS = (2, 1, 1, 1, 3, 1, 1, 2, 2, 1, 1, 1, 3)
-
-
-def app_mark(parent: tk.Misc, size: int = 36, bg: str = "#FFFFFF") -> tk.Canvas:
-    """
-    Uygulamanın vektör marka işareti: lacivert yuvarlak karo, beyaz barkod
-    çizgileri ve altın etiket şeridi. Canvas ile çizilir → her ölçekte keskin.
-    """
-    c = tk.Canvas(parent, width=size, height=size, bg=bg, highlightthickness=0)
-    r = size * 0.24
-    s = size - 1
-    # Yuvarlak köşeli karo (smooth poligon)
-    pts = [
-        r, 0, s - r, 0, s, 0, s, r, s, s - r, s, s, s - r, s,
-        r, s, 0, s, 0, s - r, 0, r, 0, 0,
-    ]
-    c.create_polygon(pts, smooth=True, fill=C_NAVY, outline=C_NAVY)
-
-    # Barkod çizgileri
-    left, right = size * 0.22, size * 0.78
-    top, bottom = size * 0.22, size * 0.64
-    total = sum(_MARK_BARS)
-    unit = (right - left) / total
-    x = left
-    for i, w in enumerate(_MARK_BARS):
-        if i % 2 == 0:  # çift indeks = çizgi, tek = boşluk
-            c.create_rectangle(x, top, x + w * unit, bottom, fill="#FFFFFF", width=0)
-        x += w * unit
-
-    # Altın etiket şeridi
-    c.create_rectangle(
-        left, size * 0.72, right, size * 0.78, fill=C_GOLD, width=0
-    )
-    return c
