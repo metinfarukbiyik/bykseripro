@@ -4,7 +4,7 @@ TSPL etiket üretici — her boyutta etiket (98×98, 100×40 …).
 Şablon (yatay ortalı):
   [opsiyonel marka üstte]
   Ana barkod + metin          | 2. barkod yan yana da konabilir
-  (A-K barkod + metin)
+  (2. barkod + metin)
   ItemNo / ParcaAd            (uzun metin satırlara bölünür, her satır ortalı)
   [opsiyonel marka altta]
 
@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from branding import LABEL_CREDIT
 
 from text_render import (
+    credit_icon,
     graphic_text_width,
     render_text_image,
     truncate_to_width,
@@ -208,6 +209,16 @@ class LayoutShape:
 
 
 @dataclass
+class LayoutIcon:
+    """Program imzası ikonu (BITMAP olarak basılır)."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+@dataclass
 class LabelLayout:
     width: int
     height: int
@@ -217,6 +228,7 @@ class LabelLayout:
     fit_note: str = ""
     margin: int = 0
     shapes: list[LayoutShape] = field(default_factory=list)
+    icons: list[LayoutIcon] = field(default_factory=list)
 
 
 def _escape(text: str) -> str:
@@ -406,22 +418,32 @@ def _text_block(
     return out, y
 
 
-def _credit_line(max_w: int, mode: str, dpi: int) -> tuple[list[LayoutText], int]:
-    """Program imzası — küçük, tek satır."""
+def _credit_line(
+    max_w: int, mode: str, dpi: int
+) -> tuple[LayoutText, LayoutIcon, int, int]:
+    """
+    Program imzası — [ikon] BYK Seri Baskı Pro · biyik.dev (tek satır).
+    Döner: (metin, ikon, satır yüksekliği, toplam genişlik); x'ler satır başına göreli.
+    """
     if mode == "graphic":
-        lh = _graphic_h(16, dpi)
-        measure = _measurer(mode, "G", 1, lh)
+        th = _graphic_h(16, dpi)
+        measure = _measurer(mode, "G", 1, th)
         font = "G"
     else:
         font = "2"
-        lh = _text_height(font, 1)
-        measure = _measurer(mode, font, 1, lh)
-    text = truncate_to_width(LABEL_CREDIT, max_w, measure)
+        th = _text_height(font, 1)
+        measure = _measurer(mode, font, 1, th)
+    ih = _graphic_h(22, dpi)
+    iw = credit_icon(ih).width
+    gap = max(3, ih // 4)
+    text = truncate_to_width(LABEL_CREDIT, max(0, max_w - iw - gap), measure)
+    line_h = max(ih, th)
+    icon = LayoutIcon(x=0, y=(line_h - ih) // 2, width=iw, height=ih)
     line = LayoutText(
-        text=text, x=0, y=0, font=font, x_mul=1, y_mul=1,
-        width=measure(text), height=lh, kind="credit", mode=mode,
+        text=text, x=iw + gap, y=(line_h - th) // 2, font=font, x_mul=1, y_mul=1,
+        width=measure(text), height=th, kind="credit", mode=mode,
     )
-    return [line], lh
+    return line, icon, line_h, iw + gap + line.width
 
 
 def _brand_block(
@@ -577,7 +599,7 @@ def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
     qr_cell_pref = int(getattr(s, "qr_cell", 4) or 0)
 
     # Program imzası (her zaman en üstte) + marka (kenara sabit, sığdırmadan etkilenmez)
-    credit_lines, credit_h = _credit_line(max_w, mode, s.dpi)
+    credit_text, credit_ic, credit_h, credit_w = _credit_line(max_w, mode, s.dpi)
     credit_block = credit_h + int(round(1.0 * dpm))
     brand_lines: list[LayoutText] = []
     brand_shapes: list[LayoutShape] = []
@@ -658,7 +680,13 @@ def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
     cx = w // 2
     y = top_reserve + max(0, (usable - content_h) // 2)
 
-    _place_centered(credit_lines, [], cx, margin, texts, shapes)
+    icons: list[LayoutIcon] = []
+    credit_x = max(0, cx - credit_w // 2)
+    for obj in (credit_text, credit_ic):
+        obj.x += credit_x
+        obj.y += margin
+    texts.append(credit_text)
+    icons.append(credit_ic)
     if brand_lines and brand_pos == "top":
         _place_centered(brand_lines, brand_shapes, cx, margin + credit_block, texts, shapes)
 
@@ -688,7 +716,7 @@ def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
     ox = int(round(s.offset_x_mm * dpm))
     oy = int(round(s.offset_y_mm * dpm))
     if ox or oy:
-        for obj in (*barcodes, *texts, *shapes):
+        for obj in (*barcodes, *texts, *shapes, *icons):
             obj.x = max(0, obj.x + ox)
             obj.y = max(0, obj.y + oy)
 
@@ -716,6 +744,7 @@ def compute_layout(label: LabelData, settings: LabelSettings) -> LabelLayout:
         fit_note="\n".join(notes),
         margin=margin,
         shapes=shapes,
+        icons=icons,
     )
 
 
@@ -750,6 +779,10 @@ def _command_parts(
                 f'BARCODE {bc.x},{bc.y},"{ctype}",{bc.height},'
                 f'0,0,{bc.narrow},{bc.wide},"{bc.data}"'
             )
+
+    for ic in layout.icons:
+        wb, hh, data = tspl_bitmap_payload(credit_icon(ic.height))
+        parts.append((f"BITMAP {ic.x},{ic.y},{wb},{hh},0,", data, "imza ikonu"))
 
     for t in layout.texts:
         if t.mode == "graphic":
@@ -812,17 +845,17 @@ def describe_layout(label: LabelData, settings: LabelSettings | None = None) -> 
     rows = [
         f"Tip Ana:{BARCODE_TYPES.get(main_t, main_t)}  "
         f"2.barkod:{BARCODE_TYPES.get(ak_t, ak_t)}",
-        f"Font Barkod:{s.font_barkod}  A-K:{s.font_ak}  Item:{s.font_item}",
+        f"Font Barkod:{s.font_barkod}  2.Barkod:{s.font_ak}  Metin:{s.font_item}",
         f"Metin: {TEXT_MODES.get(s.text_mode, s.text_mode)}  ·  "
         f"2. barkod: {AK_POSITIONS.get(s.ak_position, s.ak_position)}",
         f"[BARKOD] {label.barkod}",
     ]
     if _norm(label.ak_barkod):
-        rows.append(f"[A-K]    {label.ak_barkod}")
+        rows.append(f"[2.Bark] {label.ak_barkod}")
     if _norm(label.item_no):
-        rows.append(f"[ItemNo] {label.item_no}")
+        rows.append(f"[Orta]   {label.item_no}")
     if _norm(label.parca_ad):
-        rows.append(f"[Parça]  {label.parca_ad}")
+        rows.append(f"[Alt]    {label.parca_ad}")
     rows.append(f"[İmza]   {LABEL_CREDIT}")
     if s.brand_enabled and _norm(s.brand_text):
         rows.append(

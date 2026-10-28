@@ -6,7 +6,7 @@ from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageOps, ImageTk
 
-from text_render import render_text_image
+from text_render import credit_icon, render_text_image
 from tspl_builder import (
     LabelData,
     LabelSettings,
@@ -139,6 +139,10 @@ def render_label_image(label: LabelData, settings: LabelSettings) -> Image.Image
             )
         mask = glyphs.point(lambda p: 255 - p)
         img.paste(Image.new("RGB", glyphs.size, "black"), (t.x, t.y), mask)
+
+    for ic in layout.icons:
+        glyph = credit_icon(ic.height)
+        img.paste(Image.new("RGB", glyph.size, "black"), (ic.x, ic.y), glyph.point(lambda p: 255 - p))
 
     for sh in layout.shapes:
         x1, y1 = sh.x + sh.width - 1, sh.y + sh.height - 1

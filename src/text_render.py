@@ -136,3 +136,40 @@ def truncate_to_width(text: str, max_w: int, measure: Callable[[str], int]) -> s
     while cut > 0 and measure(text[:cut].rstrip() + ell) > max_w:
         cut -= 1
     return (text[:cut].rstrip() + ell) if cut > 0 else ""
+
+
+def credit_icon(h: int) -> Image.Image:
+    """
+    Program imzası ikonu: yatay etiket kartı (sivri uç + delik) içinde barkod.
+    Tek renk ve yazıcı noktasına hizalı çizilir → termal baskıda keskin çıkar.
+    'L' modunda döner (0 = siyah).
+    """
+    h = max(12, int(h))
+    u = max(1, round(h / 22))  # çizgi kalınlığı birimi (203 DPI'da 1 nokta)
+    w = round(h * 1.5)
+    img = Image.new("1", (w, h), 1)
+    d = ImageDraw.Draw(img)
+    notch = round(h * 0.42)
+    mid = h // 2
+    d.polygon(
+        [(notch, 0), (w - 1, 0), (w - 1, h - 1), (notch, h - 1), (0, mid)],
+        outline=0,
+        fill=1,
+        width=u,
+    )
+    hr = max(2, round(h * 0.11))
+    hx = round(notch * 0.62)
+    d.ellipse([hx - hr, mid - hr, hx + hr, mid + hr], outline=0, width=u)
+    # Barkod: çizgi / boşluk genişlikleri u katı
+    pattern = (2, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 2, 1, 1, 2)
+    x = notch + 3 * u
+    top, bot = 4 * u, h - 1 - 4 * u
+    limit = w - 1 - 3 * u
+    for i, k in enumerate(pattern):
+        bw = k * u
+        if x + bw > limit:
+            break
+        if i % 2 == 0:
+            d.rectangle([x, top, x + bw - 1, bot], fill=0)
+        x += bw
+    return img.convert("L")
